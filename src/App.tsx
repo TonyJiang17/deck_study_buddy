@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { StudyGuideView } from './components/StudyGuideView';
 import { PDFViewer } from './components/PDFViewer';
+import { ChatInterface } from './components/ChatInterface'
 import { Loader2 } from 'lucide-react';
 import { Document, pdfjs } from 'react-pdf';
 import type { StudyGuide, UploadStatus, ProcessingProgress, StudySection } from './types';
@@ -137,14 +138,45 @@ function App() {
           </div>
         </div>
       ) : (
+        // <div className="h-screen flex">
+        //   {/* PDF Viewer Panel (Left) */}
+        //   <div className="w-1/2 border-r border-gray-200 p-4">
+        //     <div className="bg-white h-full rounded-lg shadow-sm overflow-hidden">
+        //       <PDFViewer
+        //         file={selectedFile}
+        //         currentSlide={currentSlide}
+        //         onSlideChange={handleSlideChange}
+        //       />
+        //     </div>
+        //   </div>
+
+        //   {/* Study Guide Panel (Right) */}
+        //   <div className="w-1/2">
+        //     <StudyGuideView
+        //       sections={studyGuide.sections}
+        //       currentSlide={currentSlide}
+        //       overallSummary={studyGuide.overallSummary}
+        //     />
+        //   </div>
+        // </div>
         <div className="h-screen flex">
           {/* PDF Viewer Panel (Left) */}
-          <div className="w-1/2 border-r border-gray-200 p-4">
-            <div className="bg-white h-full rounded-lg shadow-sm overflow-hidden">
+          <div className="w-1/2 border-r border-gray-200 p-4 flex flex-col">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-1 mb-4">
               <PDFViewer
                 file={selectedFile}
                 currentSlide={currentSlide}
                 onSlideChange={handleSlideChange}
+              />
+            </div>
+
+            <div className="h-1/3 border border-gray-200 rounded-lg p-2 bg-white shadow-sm">
+              <ChatInterface
+                overallSummary={studyGuide.overallSummary}
+                currentSlide={currentSlide}
+                currentSlideSummary={
+                  studyGuide.sections.find((s) => s.slideNumber === currentSlide)?.summary || ''
+                }
               />
             </div>
           </div>
