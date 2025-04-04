@@ -1,10 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Set up the worker for PDF.js
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface PDFViewerProps {
@@ -16,7 +15,7 @@ interface PDFViewerProps {
 export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const [scale, setScale] = useState(1);
+  const [containerWidth, setContainerWidth] = useState<number>(600);
   const containerRef = useRef<HTMLDivElement>(null);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
@@ -31,32 +30,18 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
     }
   }
 
-  // Dynamically calculate scale to fit slide
+  // Dynamically update width on resize
   useEffect(() => {
-    if (containerRef.current) {
-      const container = containerRef.current;
-      const calculateScale = () => {
-        const pageElement = container.querySelector('.react-pdf__Page') as HTMLElement;
-        if (pageElement) {
-          const containerWidth = container.clientWidth;
-          const containerHeight = container.clientHeight;
-          const pageWidth = pageElement.offsetWidth;
-          const pageHeight = pageElement.offsetHeight;
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
 
-          const widthScale = containerWidth / pageWidth;
-          const heightScale = containerHeight / pageHeight;
-          
-          // Choose the smaller scale to ensure the entire slide fits
-          setScale(Math.min(widthScale, heightScale, 1));
-        }
-      };
-
-      // Initial calculation and add resize listener
-      calculateScale();
-      window.addEventListener('resize', calculateScale);
-      return () => window.removeEventListener('resize', calculateScale);
-    }
-  }, [currentSlide, file]);
+    updateWidth(); // Initial set
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   if (!file) {
     return (
@@ -67,18 +52,15 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Slide Container with Minimal Padding */}
-      <div 
-        ref={containerRef} 
-        className="flex-1 overflow-hidden flex items-center justify-center bg-gray-50 relative p-2"
-      >
+    <div className="h-full flex flex-col" ref={containerRef}>
+      {/* Slide Container */}
+      <div className="flex-1 overflow-hidden flex items-center justify-center bg-gray-50 relative p-2">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 z-10">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           </div>
         )}
-        
+
         <Document
           file={file}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -87,15 +69,15 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
         >
           <Page
             pageNumber={currentSlide}
-            scale={scale}
-            renderTextLayer={false}
-            renderAnnotationLayer={false}
-            className="shadow-lg rounded-lg overflow-hidden"
+            renderTextLayer={true}
+            renderAnnotationLayer={true}
+            className="shadow-lg"
+            width={containerWidth - 2} // Subtract padding (2 * 16px)
           />
         </Document>
       </div>
 
-      {/* Navigation Controls */}
+      {/* Navigation */}
       <div className="flex justify-between items-center p-2 bg-white">
         <button 
           onClick={() => changePage(-1)} 

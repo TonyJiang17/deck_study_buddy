@@ -1,6 +1,5 @@
 export interface StudyGuide {
   sections: StudySection[];
-  overallSummary: string;
 }
 
 export interface StudySection {

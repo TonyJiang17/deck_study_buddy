@@ -14,7 +14,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/$
 function App() {
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [currentSlide, setCurrentSlide] = useState(1);
-  const [studyGuide, setStudyGuide] = useState<StudyGuide>({ sections: [], overallSummary: '' });
+  const [studyGuide, setStudyGuide] = useState<StudyGuide>({ sections: [] });
   const [progress, setProgress] = useState<ProcessingProgress>({
     currentSlide: 0,
     totalSlides: 0,
@@ -85,7 +85,6 @@ function App() {
         
         const finalGuide: StudyGuide = {
           sections: guide.sections,
-          overallSummary: guide.sections.map((s) => s.summary).join('\n'),
         };
 
         setStudyGuide(finalGuide);
@@ -138,56 +137,32 @@ function App() {
           </div>
         </div>
       ) : (
-        // <div className="h-screen flex">
-        //   {/* PDF Viewer Panel (Left) */}
-        //   <div className="w-1/2 border-r border-gray-200 p-4">
-        //     <div className="bg-white h-full rounded-lg shadow-sm overflow-hidden">
-        //       <PDFViewer
-        //         file={selectedFile}
-        //         currentSlide={currentSlide}
-        //         onSlideChange={handleSlideChange}
-        //       />
-        //     </div>
-        //   </div>
-
-        //   {/* Study Guide Panel (Right) */}
-        //   <div className="w-1/2">
-        //     <StudyGuideView
-        //       sections={studyGuide.sections}
-        //       currentSlide={currentSlide}
-        //       overallSummary={studyGuide.overallSummary}
-        //     />
-        //   </div>
-        // </div>
         <div className="h-screen flex">
           {/* PDF Viewer Panel (Left) */}
-          <div className="w-1/2 border-r border-gray-200 p-4 flex flex-col">
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-1 mb-4">
-              <PDFViewer
-                file={selectedFile}
+          <div className="flex-1 overflow-auto p-4 border-r"> {/* Left panel */}
+            <PDFViewer 
+              file={selectedFile}
+              currentSlide={currentSlide}
+              onSlideChange={handleSlideChange}
+            />
+          </div>
+
+          {/* Study Guide and Chat Panel (Right) */}
+          <div className="w-1/2 flex flex-col">
+            <div className="flex-grow overflow-y-auto">
+              <StudyGuideView
+                sections={studyGuide.sections}
                 currentSlide={currentSlide}
-                onSlideChange={handleSlideChange}
               />
             </div>
-
-            <div className="h-1/3 border border-gray-200 rounded-lg p-2 bg-white shadow-sm">
+            <div className="h-1/3 border-t border-gray-200">
               <ChatInterface
-                overallSummary={studyGuide.overallSummary}
                 currentSlide={currentSlide}
                 currentSlideSummary={
                   studyGuide.sections.find((s) => s.slideNumber === currentSlide)?.summary || ''
                 }
               />
             </div>
-          </div>
-
-          {/* Study Guide Panel (Right) */}
-          <div className="w-1/2">
-            <StudyGuideView
-              sections={studyGuide.sections}
-              currentSlide={currentSlide}
-              overallSummary={studyGuide.overallSummary}
-            />
           </div>
         </div>
       )}

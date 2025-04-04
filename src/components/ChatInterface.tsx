@@ -8,13 +8,11 @@ const openai = new OpenAI({
 });
 
 interface ChatInterfaceProps {
-  overallSummary: string;
   currentSlide: number;
   currentSlideSummary: string;
 }
 
 export function ChatInterface({ 
-  overallSummary, 
   currentSlide, 
   currentSlideSummary 
 }: ChatInterfaceProps) {
@@ -31,7 +29,6 @@ export function ChatInterface({
       
       // Construct context-rich prompt
       const contextPrompt = `
-        Course Overview: ${overallSummary}
         Current Slide (${currentSlide}): ${currentSlideSummary}
         Previous Conversation: ${messages.map(m => m.text).join('\n')}
         

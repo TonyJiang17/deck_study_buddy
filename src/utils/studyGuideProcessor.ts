@@ -21,7 +21,7 @@ async function generateSlideSummary(
     });
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system", 
@@ -89,8 +89,7 @@ export async function generateStudyGuide(
 ): Promise<StudyGuide> {
   const sections: StudySection[] = [];
 
-  // for (let i = 1; i <= totalSlides; i++) {
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= totalSlides; i++) {
     // Call progress callback if provided
     if (onProgress) {
       onProgress({
