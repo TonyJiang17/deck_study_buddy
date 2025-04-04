@@ -141,10 +141,12 @@ export function StudyGuideView({
           </div>
         </div>
 
-        {isProcessing ? (
+        {isProcessing || isRegeneratingSummary ? (
           <div className="flex justify-center items-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <span className="ml-2 text-gray-600">Generating summary...</span>
+            <span className="ml-2 text-gray-600">
+              {isProcessing ? 'Generating summary...' : 'Regenerating summary...'}
+            </span>
           </div>
         ) : (
           // Render existing sections for the current slide
