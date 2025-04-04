@@ -196,6 +196,26 @@ function App() {
     }
   };
 
+  // Function to regenerate summary for a specific slide
+  const handleSummaryRegenerate = (slideNumber: number, newSummary: string) => {
+    // Update the summary for the specific slide in the studyGuide state
+    setStudyGuide(prev => ({
+      ...prev,
+      sections: prev.sections.map(section => 
+        section.slideNumber === slideNumber 
+          ? { ...section, summary: newSummary } 
+          : section
+      )
+    }));
+  };
+
+  // Extract chat history from ChatInterface
+  const extractChatHistory = () => {
+    // This is a placeholder. You'll need to modify ChatInterface to expose its messages
+    // For now, we'll return an empty array
+    return [];
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {uploadStatus === 'idle' ? (
@@ -248,6 +268,7 @@ function App() {
                 sections={studyGuide.sections}
                 currentSlide={currentSlide}
                 isProcessing={isProcessing}
+                onSummaryRegenerate={handleSummaryRegenerate}
               />
             </div>
             <div className="h-1/2 border-t border-gray-200">

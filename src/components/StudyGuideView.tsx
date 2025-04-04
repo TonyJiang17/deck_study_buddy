@@ -3,15 +3,31 @@ import { StudySection } from '../types';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { InlineMath, BlockMath } from 'react-katex';
 import { Loader2 } from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import 'katex/dist/katex.min.css';
+import OpenAI from 'openai';
+
+
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true // Use with caution, prefer backend
+});
 
 interface StudyGuideViewProps {
   sections: StudySection[];
   currentSlide: number;
-  isProcessing?: boolean;
+  isProcessing: boolean;
+  onSummaryRegenerate?: (slideNumber: number, newSummary: string) => void;
+  chatHistory?: string[];
 }
 
-export function StudyGuideView({ sections, currentSlide, isProcessing }: StudyGuideViewProps) {
+export function StudyGuideView({ 
+  sections, 
+  currentSlide, 
+  isProcessing,
+  onSummaryRegenerate,
+  chatHistory = []
+}: StudyGuideViewProps) {
   // Add more comprehensive logging
   React.useEffect(() => {
     console.log('StudyGuideView Effect Triggered:', {
@@ -23,6 +39,60 @@ export function StudyGuideView({ sections, currentSlide, isProcessing }: StudyGu
   }, [sections, currentSlide, isProcessing]);
 
   const [expandedSections, setExpandedSections] = React.useState<number[]>([]);
+  const [isRegeneratingSummary, setIsRegeneratingSummary] = React.useState(false);
+
+  const regenerateSummary = async () => {
+    try {
+      setIsRegeneratingSummary(true);
+      
+      // Find the current slide's summary
+      const currentSlideSummary = sections.find(s => s.slideNumber === currentSlide)?.summary || '';
+      
+      // Construct context-rich prompt for summary regeneration
+      const regenerationPrompt = `
+        Current Slide: ${currentSlide}
+        Original Summary: ${currentSlideSummary}
+        
+        Chat History Context: ${chatHistory.join('\n')}
+        
+        Please regenerate the slide summary, taking into account the conversation history. 
+        Incorporate any new insights or clarifications from the chat while maintaining the 
+        core content of the original summary. Be concise, academic, and precise.
+        
+        If the chat history provides additional context or reveals misunderstandings, 
+        adjust the summary accordingly to provide a more accurate and comprehensive explanation.
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an academic assistant who can regenerate slide summaries based on conversation context. Maintain academic rigor while adapting to new insights."
+          },
+          {
+            role: "user",
+            content: regenerationPrompt
+          }
+        ],
+        max_tokens: 250
+      });
+
+      const newSummary = response.choices[0].message.content || 'Unable to regenerate summary.';
+      
+      // If a callback is provided, call it with the new summary
+      if (onSummaryRegenerate) {
+        onSummaryRegenerate(currentSlide, newSummary);
+      }
+
+      return newSummary;
+    } catch (error) {
+      console.error('Summary Regeneration Error:', error);
+      return 'Error regenerating summary.';
+    } finally {
+      setIsRegeneratingSummary(false);
+    }
+  };
 
   const toggleSection = (slideNumber: number) => {
     setExpandedSections((prev) =>
@@ -41,19 +111,23 @@ export function StudyGuideView({ sections, currentSlide, isProcessing }: StudyGu
 
   return (
     <div className="h-full overflow-y-auto p-4">
-      {/* Debug information */}
-      {/* {isProcessing && (
-        <div className="bg-yellow-100 p-2 mb-4 rounded">
-          <p className="text-yellow-800">
-            Processing slide {currentSlide}... Waiting for summary generation
-          </p>
-        </div>
-      )} */}
 
       {/* Always render a container for the current slide */}
       <div className="mb-4 rounded-lg border border-gray-200">
-        <div className="px-4 py-2 border-b border-gray-200">
+        <div className="px-4 py-2 border-b border-gray-200 flex justify-between items-center">
           <span className="font-medium text-gray-800">Slide {currentSlide} Summary</span>
+          <button 
+            onClick={regenerateSummary}
+            disabled={isProcessing || isRegeneratingSummary}
+            className="text-blue-600 hover:bg-blue-100 p-1 rounded transition-colors"
+            title="Regenerate Summary"
+          >
+            {isRegeneratingSummary ? (
+              <RefreshCcw className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="w-4 h-4" />
+            )}
+          </button>
         </div>
 
         {isProcessing ? (
