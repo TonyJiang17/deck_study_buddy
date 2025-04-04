@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { StudyGuideView } from './components/StudyGuideView';
 import { PDFViewer } from './components/PDFViewer';
@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { Document, pdfjs } from 'react-pdf';
 import type { StudyGuide, UploadStatus, ProcessingProgress, StudySection } from './types';
 import { generateStudyGuide as generateSingleSlideGuide } from './utils/studyGuideProcessor';
+import { processFirstSlide, processNextSlide } from './utils/studyGuideProcessor';
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -22,6 +23,9 @@ function App() {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [totalSlides, setTotalSlides] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [canNavigateNext, setCanNavigateNext] = useState(true);
+  const [slideImages, setSlideImages] = useState<File[]>([]);
 
   const extractSlideImages = async (pdf: pdfjs.PDFDocumentProxy): Promise<File[]> => {
     const slideImages: File[] = [];
@@ -53,6 +57,7 @@ function App() {
   };
 
   const handleFileSelect = async (file: File) => {
+    console.log('File selected:', file.name);
     setSelectedFile(file);
     setUploadStatus('uploading');
 
@@ -67,28 +72,18 @@ function App() {
         const pdf = await pdfjs.getDocument(typedArray).promise;
         const totalPages = pdf.numPages;
 
-        const slideImages = await extractSlideImages(pdf);
+        const firstSlideImage = await captureSlide(file, 1);
+        console.log('First slide image:', firstSlideImage);
+        if (firstSlideImage) {
+          setSlideImages([firstSlideImage]);
+          const firstSection = await processFirstSlide(firstSlideImage);
+          console.log('First section:', firstSection);
+          setStudyGuide({ sections: [firstSection] });
+        } else {
+          console.error('Failed to capture first slide image');
+        }
+        
         setTotalSlides(totalPages);
-        
-        const guide = await generateSingleSlideGuide(
-          totalPages, 
-          slideImages, 
-          // Progress callback
-          (progress) => {
-            setProgress({
-              currentSlide: progress.currentSlide,
-              totalSlides: progress.totalSlides,
-              status: progress.status
-            });
-          }
-        );
-        
-        const finalGuide: StudyGuide = {
-          sections: guide.sections,
-        };
-
-        setStudyGuide(finalGuide);
-        // setProgress({ currentSlide: totalPages, totalSlides, status: 'complete' });
         setUploadStatus('complete');
       };
 
@@ -99,8 +94,159 @@ function App() {
     }
   };
 
-  const handleSlideChange = (pageNumber: number) => {
-    setCurrentSlide(pageNumber);
+  // const captureSlide = async (slideNumber: number): Promise<File | null> => {
+  //   console.log('Capturing slide:', slideNumber);
+  //   if (!selectedFile) {
+  //     console.error('No file selected');
+  //     return null;
+  //   }
+
+  //   try {
+  //     const fileReader = new FileReader();
+  //     const typedArray = await new Promise<Uint8Array>((resolve, reject) => {
+  //       fileReader.onload = (e) => {
+  //         const result = e.target?.result;
+  //         if (result instanceof ArrayBuffer) {
+  //           resolve(new Uint8Array(result));
+  //         } else {
+  //           reject(new Error('Failed to read file'));
+  //         }
+  //       };
+  //       fileReader.onerror = reject;
+  //       fileReader.readAsArrayBuffer(selectedFile);
+  //     });
+
+  //     console.log('Loaded PDF array buffer');
+  //     const pdf = await pdfjs.getDocument(typedArray).promise;
+  //     const page = await pdf.getPage(slideNumber);
+
+  //     console.log('Got PDF page');
+  //     // Create canvas to render slide
+  //     const canvas = document.createElement('canvas');
+  //     const context = canvas.getContext('2d');
+  //     if (!context) throw new Error('Could not get canvas context');
+
+  //     // Get viewport and scale
+  //     const viewport = page.getViewport({ scale: 2.0 });
+  //     canvas.width = viewport.width;
+  //     canvas.height = viewport.height;
+
+  //     // Render page to canvas
+  //     await page.render({
+  //       canvasContext: context,
+  //       viewport: viewport
+  //     }).promise;
+
+  //     // Convert canvas to blob
+  //     const blob = await new Promise<Blob>((resolve, reject) => {
+  //       canvas.toBlob((blob) => {
+  //         if (blob) resolve(blob);
+  //         else reject(new Error('Failed to convert canvas to blob'));
+  //       }, 'image/png');
+  //     });
+
+  //     // Convert blob to File
+  //     return new File([blob], `slide_${slideNumber}.png`, { type: 'image/png' });
+  //   } catch (error) {
+  //     console.error('Error capturing slide:', error);
+  //     return null;
+  //   }
+  // };
+  const captureSlide = async (file: File, slideNumber: number): Promise<File | null> => {
+    console.log('Capturing slide:', slideNumber);
+    try {
+      const fileReader = new FileReader();
+      const typedArray = await new Promise<Uint8Array>((resolve, reject) => {
+        fileReader.onload = (e) => {
+          const result = e.target?.result;
+          if (result instanceof ArrayBuffer) {
+            resolve(new Uint8Array(result));
+          } else {
+            reject(new Error('Failed to read file'));
+          }
+        };
+        fileReader.onerror = reject;
+        fileReader.readAsArrayBuffer(file);
+      });
+  
+      const pdf = await pdfjs.getDocument(typedArray).promise;
+      const page = await pdf.getPage(slideNumber);
+  
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Could not get canvas context');
+  
+      const viewport = page.getViewport({ scale: 2.0 });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+  
+      await page.render({ canvasContext: context, viewport }).promise;
+  
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to convert canvas to blob'));
+        }, 'image/png');
+      });
+  
+      return new File([blob], `slide_${slideNumber}.png`, { type: 'image/png' });
+    } catch (error) {
+      console.error('Error capturing slide:', error);
+      return null;
+    }
+  };
+  
+
+  const handleSlideChange = async (newSlide: number) => {
+    // Don't allow moving forward if we're processing or don't have the current slide's summary
+    if (isProcessing || (newSlide > currentSlide && !studyGuide.sections.find(s => s.slideNumber === currentSlide))) {
+      return;
+    }
+
+    // Allow moving backward
+    if (newSlide < currentSlide) {
+      setCurrentSlide(newSlide);
+      return;
+    }
+
+    // Moving forward
+    if (newSlide > currentSlide) {
+      // Check if we already have the next slide's summary
+      if (studyGuide.sections.find(s => s.slideNumber === newSlide)) {
+        setCurrentSlide(newSlide);
+        return;
+      }
+
+      setIsProcessing(true);
+      try {
+        // Capture the new slide image
+        const newSlideImage = await captureSlide(selectedFile!, newSlide);
+        if (!newSlideImage) throw new Error('Failed to capture slide');
+
+        // Get the previous slide's data
+        const previousSection = studyGuide.sections.find(s => s.slideNumber === currentSlide);
+        const previousSlideImage = slideImages[currentSlide - 1];
+        
+        if (!previousSection || !previousSlideImage) throw new Error('Previous slide data not found');
+
+        // Process the new slide
+        const newSection = await processNextSlide(
+          newSlide,
+          newSlideImage,
+          previousSection,
+          previousSlideImage
+        );
+
+        // Update state
+        setSlideImages(prev => [...prev, newSlideImage]);
+        setStudyGuide(prev => ({ sections: [...prev.sections, newSection] }));
+        setCurrentSlide(newSlide);
+      } catch (error) {
+        console.error('Error processing slide:', error);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
   };
 
   return (
@@ -144,6 +290,7 @@ function App() {
               file={selectedFile}
               currentSlide={currentSlide}
               onSlideChange={handleSlideChange}
+              disabled={isProcessing}
             />
           </div>
 

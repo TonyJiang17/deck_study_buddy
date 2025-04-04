@@ -8,11 +8,11 @@ const openai = new OpenAI({
 });
 
 async function generateSlideSummary(
-  slideImage: File, 
-  previousContext: string
+  slideImage: File,
+  previousContext?: { summary: string; image: File } // Optional previous slide context
 ): Promise<{ summary: string, content: string }> {
   try {
-    // Convert image to base64
+    // Convert current image to base64
     const imageBase64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
@@ -20,56 +20,101 @@ async function generateSlideSummary(
       reader.readAsDataURL(slideImage);
     });
 
+    // Convert previous image to base64 if it exists
+    let previousImageBase64 = '';
+    if (previousContext?.image) {
+      previousImageBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(previousContext.image);
+      });
+    }
+
+    // Prepare messages array based on whether we have previous context
+    const messages = [
+      {
+        role: "system",
+        content: previousContext 
+          ? "You are an expert academic slide summarizer. Analyze both the previous and current slides to generate a contextual, informative summary of the current slide."
+          : "You are an expert academic slide summarizer. Analyze the slide image and generate a concise, informative summary."
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: previousContext
+              ? `Previous Slide Summary: ${previousContext.summary}\n\nPlease generate a precise, academic summary of the current slide, taking into account the context from the previous slide.`
+              : "Please generate a precise, academic summary of this slide."
+          },
+          ...(previousContext ? [
+            {
+              type: "image_url",
+              image_url: { url: previousImageBase64 }
+            }
+          ] : []),
+          {
+            type: "image_url",
+            image_url: { url: imageBase64 }
+          }
+        ]
+      }
+    ];
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system", 
-          content: "You are an expert academic slide summarizer. Analyze the slide image and generate a concise, informative summary."
-        },
-        {
-          role: "user", 
-          content: [
-            { 
-              type: "text", 
-              text: `Previous Slides Summary: ${previousContext}\n\nPlease generate a precise, academic summary of this slide.` 
-            },
-            { 
-              type: "image_url", 
-              image_url: { url: imageBase64 } 
-            }
-          ]
-        }
-      ],
+      messages,
       max_tokens: 150
     });
 
     const summary = response.choices[0].message.content || '';
-    return { 
-      summary, 
-      content: imageBase64 // Store base64 image as content
+    return {
+      summary,
+      content: imageBase64
     };
   } catch (error) {
     console.error('OpenAI API Error:', error);
-    return { 
-      summary: 'Unable to generate summary', 
-      content: '' 
+    return {
+      summary: 'Unable to generate summary',
+      content: ''
     };
   }
 }
 
-async function processSlide(
-  slideNumber: number,
-  slideImage: File,
-  previousSections: StudySection[]
+async function processFirstSlide(
+  slideImage: File
 ): Promise<StudySection> {
-  // Build context from previous slides
-  const context = previousSections
-    .map(section => section.summary)
-    .join('\n');
+  console.log('Processing first slide, image:', slideImage);
+  try {
+    const { summary, content } = await generateSlideSummary(slideImage);
+    console.log('First slide summary:', summary);
+    console.log('First slide content:', content);
+    return {
+      slideNumber: 1,
+      content,
+      summary
+    };
+  } catch (error) {
+    console.error('Error processing first slide:', error);
+    return {
+      slideNumber: 1,
+      content: '',
+      summary: 'Failed to generate summary'
+    };
+  }
+}
 
-  // Generate summary using OpenAI
-  const { summary, content } = await generateSlideSummary(slideImage, context);
+async function processNextSlide(
+  slideNumber: number,
+  currentSlideImage: File,
+  previousSection: StudySection,
+  previousSlideImage: File
+): Promise<StudySection> {
+  const { summary, content } = await generateSlideSummary(
+    currentSlideImage,
+    { summary: previousSection.summary, image: previousSlideImage }
+  );
 
   return {
     slideNumber,
@@ -78,42 +123,7 @@ async function processSlide(
   };
 }
 
-function generateOverallSummary(sections: StudySection[]): string {
-  return sections.map(section => section.summary).join('\n');
-}
-
-export async function generateStudyGuide(
-  totalSlides: number, 
-  slideImages: File[],
-  onProgress?: (progress: { currentSlide: number, totalSlides: number, status: 'processing' | 'complete' }) => void
-): Promise<StudyGuide> {
-  const sections: StudySection[] = [];
-
-  for (let i = 1; i <= totalSlides; i++) {
-    // Call progress callback if provided
-    if (onProgress) {
-      onProgress({
-        currentSlide: i,
-        totalSlides,
-        status: 'processing'
-      });
-    }
-
-    const section = await processSlide(i, slideImages[i-1], sections);
-    sections.push(section);
-  }
-
-  // Final progress update
-  if (onProgress) {
-    onProgress({
-      currentSlide: totalSlides,
-      totalSlides,
-      status: 'complete'
-    });
-  }
-
-  return {
-    sections,
-    overallSummary: generateOverallSummary(sections)
-  };
-}
+export {
+  processFirstSlide,
+  processNextSlide
+};

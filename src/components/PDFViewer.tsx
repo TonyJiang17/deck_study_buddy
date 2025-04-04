@@ -7,12 +7,13 @@ import 'react-pdf/dist/Page/TextLayer.css';
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface PDFViewerProps {
-  file: File | null;
+  file: File;
   currentSlide: number;
   onSlideChange: (pageNumber: number) => void;
+  disabled?: boolean;
 }
 
-export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps) {
+export function PDFViewer({ file, currentSlide, onSlideChange, disabled }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [containerWidth, setContainerWidth] = useState<number>(600);
@@ -23,12 +24,12 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
     setLoading(false);
   }
 
-  function changePage(offset: number) {
+  const changePage = (offset: number) => {
     const newPage = currentSlide + offset;
-    if (newPage >= 1 && newPage <= numPages) {
+    if (newPage >= 1 && newPage <= numPages && !disabled) {
       onSlideChange(newPage);
     }
-  }
+  };
 
   // Dynamically update width on resize
   useEffect(() => {
@@ -38,7 +39,7 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
       }
     };
 
-    updateWidth(); // Initial set
+    updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
@@ -46,7 +47,7 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
   if (!file) {
     return (
       <div className="h-full flex items-center justify-center">
-        <p className="text-gray-500">No PDF file selected</p>
+        <p>No file selected</p>
       </div>
     );
   }
@@ -64,15 +65,14 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
         <Document
           file={file}
           onLoadSuccess={onDocumentLoadSuccess}
-          className="w-full h-full flex items-center justify-center"
-          loading={<Loader2 className="w-8 h-8 animate-spin text-blue-500" />}
+          loading={null}
         >
           <Page
             pageNumber={currentSlide}
             renderTextLayer={true}
             renderAnnotationLayer={true}
             className="shadow-lg"
-            width={containerWidth - 2} // Subtract padding (2 * 16px)
+            width={containerWidth - 32} // Subtract padding (2 * 16px)
           />
         </Document>
       </div>
@@ -81,20 +81,24 @@ export function PDFViewer({ file, currentSlide, onSlideChange }: PDFViewerProps)
       <div className="flex justify-between items-center p-2 bg-white">
         <button 
           onClick={() => changePage(-1)} 
-          disabled={currentSlide <= 1}
-          className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-50"
+          disabled={currentSlide <= 1 || disabled}
+          className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${
+            currentSlide <= 1 || disabled ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
-          <ChevronLeft />
+          <ChevronLeft className="w-6 h-6" />
         </button>
         <span className="text-sm text-gray-600">
-          Page {currentSlide} of {numPages}
+          {currentSlide} / {numPages}
         </span>
         <button 
           onClick={() => changePage(1)} 
-          disabled={currentSlide >= numPages}
-          className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-50"
+          disabled={currentSlide >= numPages || disabled}
+          className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${
+            currentSlide >= numPages || disabled ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
-          <ChevronRight />
+          <ChevronRight className="w-6 h-6" />
         </button>
       </div>
     </div>
