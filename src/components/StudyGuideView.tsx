@@ -102,12 +102,12 @@ export function StudyGuideView({
     );
   };
 
-  // Log render information
-  console.log('StudyGuideView Render:', {
-    currentSlide,
-    isProcessing,
-    sectionsCount: sections.length
-  });
+  // // Log render information
+  // console.log('StudyGuideView Render:', {
+  //   currentSlide,
+  //   isProcessing,
+  //   sectionsCount: sections.length
+  // });
 
   return (
     <div className="h-full overflow-y-auto p-4">

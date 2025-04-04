@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import OpenAI from 'openai';
 
 // Initialize OpenAI client (same as in studyGuideProcessor.ts)
@@ -10,11 +10,13 @@ const openai = new OpenAI({
 interface ChatInterfaceProps {
   currentSlide: number;
   currentSlideSummary: string;
+  onMessagesChange?: (messages: string[]) => void;
 }
 
 export function ChatInterface({ 
   currentSlide, 
-  currentSlideSummary 
+  currentSlideSummary,
+  onMessagesChange
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<{
     text: string;
@@ -22,6 +24,17 @@ export function ChatInterface({
   }[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Effect to notify parent component of message changes
+  useEffect(() => {
+    if (onMessagesChange) {
+      // Pass full chat history with sender information
+      const chatHistoryWithContext = messages.map(msg => 
+        `${msg.sender === 'user' ? 'User' : 'AI'}: ${msg.text}`
+      );
+      onMessagesChange(chatHistoryWithContext);
+    }
+  }, [messages, onMessagesChange]);
 
   const generateAIResponse = async (userMessage: string) => {
     try {

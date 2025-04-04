@@ -26,7 +26,9 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [canNavigateNext, setCanNavigateNext] = useState(true);
   const [slideImages, setSlideImages] = useState<File[]>([]);
+  const [chatHistory, setChatHistory] = useState<string[]>([]);
 
+  // Extract slide images from PDF
   const extractSlideImages = async (pdf: pdfjs.PDFDocumentProxy): Promise<File[]> => {
     const slideImages: File[] = [];
 
@@ -140,6 +142,7 @@ function App() {
   
 
   const handleSlideChange = async (newSlide: number) => {
+    console.log(chatHistory)
     // Don't allow moving forward if we're processing or don't have the current slide's summary
     if (newSlide > currentSlide && !studyGuide.sections.find(s => s.slideNumber === currentSlide)) {
       return;
@@ -209,11 +212,14 @@ function App() {
     }));
   };
 
-  // Extract chat history from ChatInterface
+  // Function to update chat history
+  const handleMessagesChange = useCallback((newMessage: [string]) => {
+    setChatHistory(newMessage);
+  }, []);
+
+  // Function to extract chat history
   const extractChatHistory = () => {
-    // This is a placeholder. You'll need to modify ChatInterface to expose its messages
-    // For now, we'll return an empty array
-    return [];
+    return chatHistory;
   };
 
   return (
@@ -269,6 +275,7 @@ function App() {
                 currentSlide={currentSlide}
                 isProcessing={isProcessing}
                 onSummaryRegenerate={handleSummaryRegenerate}
+                chatHistory={chatHistory}
               />
             </div>
             <div className="h-1/2 border-t border-gray-200">
@@ -277,6 +284,7 @@ function App() {
                 currentSlideSummary={
                   studyGuide.sections.find((s) => s.slideNumber === currentSlide)?.summary || ''
                 }
+                onMessagesChange={handleMessagesChange}
               />
             </div>
           </div>
