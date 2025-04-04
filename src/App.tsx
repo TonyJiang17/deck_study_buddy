@@ -94,64 +94,6 @@ function App() {
     }
   };
 
-  // const captureSlide = async (slideNumber: number): Promise<File | null> => {
-  //   console.log('Capturing slide:', slideNumber);
-  //   if (!selectedFile) {
-  //     console.error('No file selected');
-  //     return null;
-  //   }
-
-  //   try {
-  //     const fileReader = new FileReader();
-  //     const typedArray = await new Promise<Uint8Array>((resolve, reject) => {
-  //       fileReader.onload = (e) => {
-  //         const result = e.target?.result;
-  //         if (result instanceof ArrayBuffer) {
-  //           resolve(new Uint8Array(result));
-  //         } else {
-  //           reject(new Error('Failed to read file'));
-  //         }
-  //       };
-  //       fileReader.onerror = reject;
-  //       fileReader.readAsArrayBuffer(selectedFile);
-  //     });
-
-  //     console.log('Loaded PDF array buffer');
-  //     const pdf = await pdfjs.getDocument(typedArray).promise;
-  //     const page = await pdf.getPage(slideNumber);
-
-  //     console.log('Got PDF page');
-  //     // Create canvas to render slide
-  //     const canvas = document.createElement('canvas');
-  //     const context = canvas.getContext('2d');
-  //     if (!context) throw new Error('Could not get canvas context');
-
-  //     // Get viewport and scale
-  //     const viewport = page.getViewport({ scale: 2.0 });
-  //     canvas.width = viewport.width;
-  //     canvas.height = viewport.height;
-
-  //     // Render page to canvas
-  //     await page.render({
-  //       canvasContext: context,
-  //       viewport: viewport
-  //     }).promise;
-
-  //     // Convert canvas to blob
-  //     const blob = await new Promise<Blob>((resolve, reject) => {
-  //       canvas.toBlob((blob) => {
-  //         if (blob) resolve(blob);
-  //         else reject(new Error('Failed to convert canvas to blob'));
-  //       }, 'image/png');
-  //     });
-
-  //     // Convert blob to File
-  //     return new File([blob], `slide_${slideNumber}.png`, { type: 'image/png' });
-  //   } catch (error) {
-  //     console.error('Error capturing slide:', error);
-  //     return null;
-  //   }
-  // };
   const captureSlide = async (file: File, slideNumber: number): Promise<File | null> => {
     console.log('Capturing slide:', slideNumber);
     try {
@@ -199,7 +141,7 @@ function App() {
 
   const handleSlideChange = async (newSlide: number) => {
     // Don't allow moving forward if we're processing or don't have the current slide's summary
-    if (isProcessing || (newSlide > currentSlide && !studyGuide.sections.find(s => s.slideNumber === currentSlide))) {
+    if (newSlide > currentSlide && !studyGuide.sections.find(s => s.slideNumber === currentSlide)) {
       return;
     }
 
@@ -210,42 +152,47 @@ function App() {
     }
 
     // Moving forward
-    if (newSlide > currentSlide) {
-      // Check if we already have the next slide's summary
-      if (studyGuide.sections.find(s => s.slideNumber === newSlide)) {
-        setCurrentSlide(newSlide);
-        return;
-      }
+    
+    // Check if we already have the next slide's summary
+    if (studyGuide.sections.find(s => s.slideNumber === newSlide)) {
+      setCurrentSlide(newSlide);
+      return;
+    }
 
-      setIsProcessing(true);
-      try {
-        // Capture the new slide image
-        const newSlideImage = await captureSlide(selectedFile!, newSlide);
-        if (!newSlideImage) throw new Error('Failed to capture slide');
+    // Immediately update current slide
+    setCurrentSlide(newSlide);
+    
+    // Start processing the new slide
+    setIsProcessing(true);
+    try {
+      // Capture the new slide image
+      const newSlideImage = await captureSlide(selectedFile!, newSlide);
+      if (!newSlideImage) throw new Error('Failed to capture slide');
 
-        // Get the previous slide's data
-        const previousSection = studyGuide.sections.find(s => s.slideNumber === currentSlide);
-        const previousSlideImage = slideImages[currentSlide - 1];
-        
-        if (!previousSection || !previousSlideImage) throw new Error('Previous slide data not found');
+      // Update state
+      setSlideImages(prev => [...prev, newSlideImage]);
 
-        // Process the new slide
-        const newSection = await processNextSlide(
-          newSlide,
-          newSlideImage,
-          previousSection,
-          previousSlideImage
-        );
+      // Get the previous slide's data
+      const previousSection = studyGuide.sections.find(s => s.slideNumber === newSlide - 1);
+      const previousSlideImage = slideImages[newSlide - 2];
+      
+      // console.log(currentSlide, previousSection);
+      if (!previousSection ) throw new Error('Previous summary data not found');
+      if (!previousSlideImage) throw new Error('Previous slide image not found');
 
-        // Update state
-        setSlideImages(prev => [...prev, newSlideImage]);
-        setStudyGuide(prev => ({ sections: [...prev.sections, newSection] }));
-        setCurrentSlide(newSlide);
-      } catch (error) {
-        console.error('Error processing slide:', error);
-      } finally {
-        setIsProcessing(false);
-      }
+      // Process the new slide
+      const newSection = await processNextSlide(
+        newSlide,
+        newSlideImage,
+        previousSection,
+        previousSlideImage
+      );
+
+      setStudyGuide(prev => ({ sections: [...prev.sections, newSection] }));
+    } catch (error) {
+      console.error('Error processing slide:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -300,9 +247,10 @@ function App() {
               <StudyGuideView
                 sections={studyGuide.sections}
                 currentSlide={currentSlide}
+                isProcessing={isProcessing}
               />
             </div>
-            <div className="h-1/3 border-t border-gray-200">
+            <div className="h-1/2 border-t border-gray-200">
               <ChatInterface
                 currentSlide={currentSlide}
                 currentSlideSummary={

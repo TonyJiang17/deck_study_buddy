@@ -38,7 +38,7 @@ export function ChatInterface({
       `;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -79,6 +79,35 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full border rounded-lg">
+      {/* Chat Context Indicator */}
+      <div className="bg-blue-50 p-1 border-b flex items-center justify-between">
+        <div className="flex items-center space-x-1">
+          <span className="text-sm font-medium text-blue-700">
+            Chat Context:
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Slide {currentSlide} 
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Slide {currentSlide} Summary
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Chat History
+          </span>
+        </div>
+        {/* {currentSlideSummary && (
+          <button 
+            className="text-xs text-blue-600 hover:underline"
+            onClick={() => {
+              // Could add a modal or tooltip to show full summary
+              alert(`Slide ${currentSlide} Summary:\n\n${currentSlideSummary}`);
+            }}
+          >
+            View Summary
+          </button>
+        )} */}
+      </div>
+
       {/* Chat Messages Area */}
       <div className="flex-grow overflow-y-auto p-4 space-y-2">
         {messages.map((msg, index) => (
