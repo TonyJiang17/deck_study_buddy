@@ -11,12 +11,14 @@ interface ChatInterfaceProps {
   currentSlide: number;
   currentSlideSummary: string;
   onMessagesChange?: (messages: string[]) => void;
+  chatHistory?: string[];
 }
 
 export function ChatInterface({ 
   currentSlide, 
   currentSlideSummary,
-  onMessagesChange
+  onMessagesChange,
+  chatHistory
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<{
     text: string;

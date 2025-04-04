@@ -18,7 +18,7 @@ interface StudyGuideViewProps {
   currentSlide: number;
   isProcessing: boolean;
   onSummaryRegenerate?: (slideNumber: number, newSummary: string) => void;
-  chatHistory?: string[];
+  chatHistory: string[];
 }
 
 export function StudyGuideView({ 
@@ -26,7 +26,7 @@ export function StudyGuideView({
   currentSlide, 
   isProcessing,
   onSummaryRegenerate,
-  chatHistory = []
+  chatHistory
 }: StudyGuideViewProps) {
   // Add more comprehensive logging
   React.useEffect(() => {
@@ -62,7 +62,7 @@ export function StudyGuideView({
         If the chat history provides additional context or reveals misunderstandings, 
         adjust the summary accordingly to provide a more accurate and comprehensive explanation.
       `;
-
+      console.log('Regenerating summary prompt', regenerationPrompt)
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -75,7 +75,7 @@ export function StudyGuideView({
             content: regenerationPrompt
           }
         ],
-        max_tokens: 250
+        max_tokens: 300
       });
 
       const newSummary = response.choices[0].message.content || 'Unable to regenerate summary.';
@@ -114,20 +114,31 @@ export function StudyGuideView({
 
       {/* Always render a container for the current slide */}
       <div className="mb-4 rounded-lg border border-gray-200">
-        <div className="px-4 py-2 border-b border-gray-200 flex justify-between items-center">
-          <span className="font-medium text-gray-800">Slide {currentSlide} Summary</span>
-          <button 
-            onClick={regenerateSummary}
-            disabled={isProcessing || isRegeneratingSummary}
-            className="text-blue-600 hover:bg-blue-100 p-1 rounded transition-colors"
-            title="Regenerate Summary"
-          >
-            {isRegeneratingSummary ? (
-              <RefreshCcw className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCcw className="w-4 h-4" />
-            )}
-          </button>
+        <div className="px-4 py-2 border-b border-gray-200 flex items-center">
+          <span className="font-medium text-gray-800 flex-grow">Slide {currentSlide} Summary</span>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={regenerateSummary}
+              disabled={isProcessing || isRegeneratingSummary}
+              className="text-blue-600 hover:bg-blue-100 p-1 rounded transition-colors"
+              title="Regenerate Summary"
+            >
+              {isRegeneratingSummary ? (
+                <RefreshCcw className="w-4 h-4 animate-spin" /> 
+              ) : (
+                <RefreshCcw className="w-4 h-4" />
+              )}
+            </button>
+            <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              Slide {currentSlide} 
+            </span>
+            <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              Slide {currentSlide} Summary
+            </span>
+            <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              Chat History
+            </span>
+          </div>
         </div>
 
         {isProcessing ? (
