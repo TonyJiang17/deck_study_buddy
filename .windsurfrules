@@ -1,0 +1,250 @@
+windsurf:
+  version: "1.0"
+
+  # -----------------------------------------------------------
+  # 1. DATABASE TABLES & RELATIONSHIPS
+  # -----------------------------------------------------------
+  database:
+    tables:
+      - name: User
+        columns:
+          - name: id
+            type: uuid
+            primaryKey: true
+            default: gen_random_uuid()
+          - name: email
+            type: text
+            unique: true
+            notNull: true
+          - name: display_name
+            type: text
+          - name: google_id
+            type: text
+            unique: true
+          - name: created_at
+            type: timestamptz
+            notNull: true
+            default: now()
+
+      - name: SlideDeck
+        columns:
+          - name: id
+            type: uuid
+            primaryKey: true
+            default: gen_random_uuid()
+          - name: user_id
+            type: uuid
+            references: User.id
+            onDelete: CASCADE
+            notNull: true
+          - name: title
+            type: text
+            notNull: true
+          - name: pdf_url
+            type: text
+            notNull: true
+          - name: created_at
+            type: timestamptz
+            notNull: true
+            default: now()
+
+      - name: SlideSummary
+        columns:
+          - name: id
+            type: uuid
+            primaryKey: true
+            default: gen_random_uuid()
+          - name: slide_deck_id
+            type: uuid
+            references: SlideDeck.id
+            onDelete: CASCADE
+            notNull: true
+          - name: slide_number
+            type: int
+            notNull: true
+          - name: summary_text
+            type: text
+          - name: created_at
+            type: timestamptz
+            notNull: true
+            default: now()
+          - name: updated_at
+            type: timestamptz
+            notNull: true
+            default: now()
+        constraints:
+          - unique: [slide_deck_id, slide_number]
+
+  # -----------------------------------------------------------
+  # 2. BACKEND ROUTES / ENDPOINTS
+  # -----------------------------------------------------------
+  backend:
+    routes:
+      - name: AUTH_ROUTES
+        description: "Handles Google OAuth sign-in/out and session management."
+        endpoints:
+          - path: /api/auth/google
+            method: GET or POST
+            action: "Initiate Google OAuth flow or handle callback."
+          - path: /api/auth/logout
+            method: POST
+            action: "Invalidate user session token."
+
+      - name: SLIDE_DECK_CRUD
+        description: "CRUD for managing slide deck records."
+        endpoints:
+          - path: /api/slide-decks
+            method: GET
+            action: "Return all slide decks belonging to authenticated user."
+          - path: /api/slide-decks
+            method: POST
+            bodyParams:
+              - pdf_url
+              - title
+            action: "Create a new SlideDeck row."
+          - path: /api/slide-decks/[id]
+            method: GET
+            action: "Return specific SlideDeck info."
+          - path: /api/slide-decks/[id]
+            method: DELETE
+            action: "Delete the specified SlideDeck if user has permission."
+
+      - name: SLIDE_SUMMARIES
+        description: "Endpoints for handling slide summaries."
+        endpoints:
+          - path: /api/slide-summaries
+            method: GET
+            queryParams:
+              - slideDeckId
+            action: "Fetch all SlideSummary records for a given deck."
+          - path: /api/slide-summaries/generate
+            method: POST
+            bodyParams:
+              - slideDeckId
+              - slideNumber
+              - previousSlideNumber (optional)
+              - previousSummary (optional)
+              - chatContext (optional)
+            action: "Generate or upsert a summary for the specified slide. Calls OpenAI with context."
+          - path: /api/slide-summaries/regenerate
+            method: POST
+            bodyParams:
+              - slideDeckId
+              - slideNumber
+              - chatContext (optional)
+            action: "Overwrite or version a SlideSummary. Calls OpenAI again."
+
+      - name: CHAT_ENDPOINT
+        description: "Ephemeral global chat; no DB persistence."
+        endpoints:
+          - path: /api/chat
+            method: POST
+            bodyParams:
+              - userMessage
+              - slideDeckId
+              - slideNumber
+              - slideSummary
+              - chatHistory
+            action: "Construct final prompt with ephemeral context; proxy call to OpenAI; return the response."
+
+  # -----------------------------------------------------------
+  # 3. WORKFLOWS & LOGIC
+  # -----------------------------------------------------------
+  workflows:
+
+    - name: "User Login Workflow"
+      steps:
+        - "Display Google Sign-In UI (NextAuth or Supabase Auth)."
+        - "Upon success, store user in session context."
+        - "User can now access Slide Deck CRUD and Summaries."
+
+    - name: "Slide Deck Upload Workflow"
+      steps:
+        - "User selects PDF in front-end."
+        - "Front-end uploads PDF to Supabase Storage → obtains pdf_url."
+        - "Front-end calls POST /api/slide-decks with { pdf_url, title }."
+        - "Server inserts new record in SlideDeck referencing user_id."
+
+    - name: "Generate or Fetch Slide Summary"
+      steps:
+        - "User navigates to a particular slide."
+        - "Front-end requests existing summary (GET /api/slide-summaries?slideDeckId=...)."
+        - "If none found, front-end calls POST /api/slide-summaries/generate."
+        - "Backend calls OpenAI with slide context (image or extracted text), previous summary, etc."
+        - "Backend upserts new SlideSummary record. Returns summary_text to FE."
+
+    - name: "Regenerate Slide Summary"
+      steps:
+        - "User requests to regenerate summary (via FE trigger)."
+        - "Front-end calls POST /api/slide-summaries/regenerate with relevant context."
+        - "Backend calls OpenAI again; overwrites or versions the summary."
+        - "Returns new summary_text to FE."
+
+    - name: "Global Chat Workflow (Ephemeral)"
+      steps:
+        - "Front-end stores the chat messages in local state, not DB."
+        - "Any user question triggers POST /api/chat."
+        - "Backend assembles prompt: user’s message, ephemeral chat history, current slide summary, etc."
+        - "Backend calls OpenAI, returns the response to the FE."
+        - "FE updates local state with new chat message. No DB writes."
+
+    - name: "Returning User Workflow"
+      steps:
+        - "User logs back in via Google OAuth."
+        - "Front-end calls GET /api/slide-decks to list the user’s existing decks."
+        - "When user opens a SlideDeck, front-end fetches all existing SlideSummary rows (GET /api/slide-summaries)."
+        - "Previously generated summaries appear. Chat is fresh (no history in DB)."
+
+  # -----------------------------------------------------------
+  # 4. SECURITY & OPENAI CALLS
+  # -----------------------------------------------------------
+  security:
+    openAI:
+      description: "All OpenAI calls must happen server-side."
+      rules:
+        - "Store OpenAI API key in environment variables or secure store."
+        - "Never expose the key to the client."
+        - "All requests for summary generation or chat must call the server, which proxies to OpenAI."
+
+    authentication:
+      description: "Ensures the correct user is logged in."
+      rules:
+        - "Check session or JWT tokens on each endpoint."
+        - "Reject requests if user is not authenticated."
+        - "Use NextAuth or Supabase Auth with Google provider."
+
+    authorization:
+      description: "Ensures that only the owner can access or modify decks."
+      rules:
+        - "SlideDeck.user_id must match current user’s ID on create, read, update, delete."
+        - "SlideSummary must be validated against user ownership of SlideDeck."
+
+  # -----------------------------------------------------------
+  # 5. STORAGE CONFIG
+  # -----------------------------------------------------------
+  storage:
+    provider: "Supabase Storage"
+    bucket: "slide_decks"
+    visibility: "public or private"
+    notes:
+      - "If private, generate signed URLs for PDF retrieval."
+      - "pdf_url field in SlideDeck references the stored file location."
+
+  # -----------------------------------------------------------
+  # 6. OPTIONAL VERSIONING
+  # -----------------------------------------------------------
+  optional_features:
+    versioned_summaries:
+      description: "Keep a history of summary regenerations."
+      approach:
+        - "Create a SlideSummaryVersion table referencing SlideSummary.id."
+        - "Insert a new version row on each regeneration."
+        - "SlideSummary can store only the latest summary_text or also keep the original."
+
+    chat_history_persistence:
+      description: "Store chat logs to pick up conversation across sessions."
+      approach:
+        - "Add a ChatMessage table referencing SlideDeck (and user)."
+        - "On each message, insert a row with message text, role (user/assistant), timestamp."
+        - "Front-end fetches entire conversation from the DB upon deck load."
+
