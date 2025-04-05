@@ -154,7 +154,7 @@ windsurf:
 
     - name: "User Login Workflow"
       steps:
-        - "Display Google Sign-In UI (NextAuth or Supabase Auth)."
+        - "Display Google Sign-In UI (Supabase Auth)."
         - "Upon success, store user in session context."
         - "User can now access Slide Deck CRUD and Summaries."
 
