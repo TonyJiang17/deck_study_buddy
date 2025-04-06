@@ -1,24 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import OpenAI from 'openai';
-
-// Initialize OpenAI client (same as in studyGuideProcessor.ts)
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Use with caution, prefer backend
-});
+import { supabase } from '../lib/supabase';
 
 interface ChatInterfaceProps {
   currentSlide: number;
   currentSlideSummary: string;
   onMessagesChange?: (messages: string[]) => void;
   chatHistory?: string[];
+  slideDeckId?: string;
 }
 
 export function ChatInterface({ 
   currentSlide, 
   currentSlideSummary,
   onMessagesChange,
-  chatHistory
+  chatHistory,
+  slideDeckId
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<{
     text: string;
@@ -42,34 +38,40 @@ export function ChatInterface({
     try {
       setIsLoading(true);
       
-      // Construct context-rich prompt
-      const contextPrompt = `
-        Current Slide (${currentSlide}): ${currentSlideSummary}
-        Previous Conversation: ${messages.map(m => m.text).join('\n')}
-        
-        User Question: ${userMessage}
-        
-        Please provide a helpful, concise, and academic response that directly addresses the user's question while referencing the slide context.
-      `;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful AI assistant specialized in explaining academic slide content. Provide clear, precise answers."
-          },
-          {
-            role: "user",
-            content: contextPrompt
-          }
-        ],
-        max_tokens: 250
+      // Get current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+      
+      // Prepare the chat history for the API request
+      const formattedChatHistory = messages.map(m => m.text);
+      
+      // Call the backend API endpoint
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          userMessage,
+          slideDeckId,
+          slideNumber: currentSlide,
+          slideSummary: currentSlideSummary,
+          chatHistory: formattedChatHistory
+        })
       });
-
-      return response.choices[0].message.content || 'I could not generate a response.';
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to get AI response');
+      }
+      
+      const data = await response.json();
+      return data.response || 'I could not generate a response.';
     } catch (error) {
-      console.error('OpenAI API Error:', error);
+      console.error('Chat API Error:', error);
       return 'Sorry, there was an error processing your request.';
     } finally {
       setIsLoading(false);
@@ -110,17 +112,6 @@ export function ChatInterface({
             Chat History
           </span>
         </div>
-        {/* {currentSlideSummary && (
-          <button 
-            className="text-xs text-blue-600 hover:underline"
-            onClick={() => {
-              // Could add a modal or tooltip to show full summary
-              alert(`Slide ${currentSlide} Summary:\n\n${currentSlideSummary}`);
-            }}
-          >
-            View Summary
-          </button>
-        )} */}
       </div>
 
       {/* Chat Messages Area */}

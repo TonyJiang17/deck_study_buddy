@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import slide_deck, slide_summary
+from app.routes import slide_deck, slide_summary, chat
 
 app = FastAPI()
 
@@ -16,6 +16,7 @@ app.add_middleware(
 # Include routers
 app.include_router(slide_deck.router, prefix="/api/slide-decks", tags=["slide-decks"])
 app.include_router(slide_summary.router, prefix="/api/slide-summaries", tags=["slide-summaries"])
+app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 
 # Optional: Health check endpoint
 @app.get("/health")

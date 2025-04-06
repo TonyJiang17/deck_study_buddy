@@ -9,7 +9,7 @@ class SupabaseService:
             settings.SUPABASE_URL, 
             settings.SUPABASE_SERVICE_KEY
         )
-        print("Service key prefix:", settings.SUPABASE_SERVICE_KEY)
+        # print("Service key prefix:", settings.SUPABASE_SERVICE_KEY)
 
     def create_slide_deck_record(self, user_id: str, title: str, pdf_url: str):
         """
