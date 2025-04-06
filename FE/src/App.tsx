@@ -101,15 +101,12 @@ function App() {
     script.defer = true;
   
     script.onload = () => {
-      // const waitForRef = setInterval(() => {
-      //   if (googleButtonRef.current && window.google?.accounts?.id) {
-      //     clearInterval(waitForRef);
-      //     initializeGoogleOneTap(); // now the ref exists
-      //   }
-      // }, 100); // check every 100ms until ready
-      script.onload = () => {
-        console.log('Google One Tap script loaded');
-      };
+      const waitForRef = setInterval(() => {
+        if (googleButtonRef.current && window.google?.accounts?.id) {
+          clearInterval(waitForRef);
+          initializeGoogleOneTap(); // now the ref exists
+        }
+      }, 100); // check every 100ms until ready
     };
   
     document.body.appendChild(script);
@@ -152,12 +149,7 @@ function App() {
             console.error('Error creating user:', insertError);
           }
         }
-      } else {
-        if (window.google?.accounts?.id && googleButtonRef.current) {
-          initializeGoogleOneTap();
-        }
-      }
-      
+      } 
       setIsLoading(false);
     };
   
@@ -171,7 +163,7 @@ function App() {
         if (event === 'SIGNED_IN') {
           // Additional first-time login logic can go here
           console.log('User signed in for the first time or logged in again');
-          window.google?.accounts.id.cancel(); // 👈 Cancel One Tap
+          window.google?.accounts.id.cancel(); // 
         }
       }
     );
@@ -671,19 +663,30 @@ function App() {
     <div>
       {user ? (
         <div className="flex min-h-screen bg-gray-50">
-          {/* Sidebar for Slide Decks */}
-          <div className={`bg-white shadow-md transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-12'} flex flex-col`}>
-            <div className="flex justify-between items-center p-4 border-b">
-              {isSidebarOpen && <h2 className="font-semibold">My Slide Decks</h2>}
+          {/* Sidebar and Toggle Button */}
+          <div className="relative h-screen">
+            {/* Toggle Button (Only visible when sidebar is collapsed) */}
+            {!isSidebarOpen && (
               <button 
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-1 rounded hover:bg-gray-100"
+                onClick={() => setIsSidebarOpen(true)}
+                className="absolute top-4 left-4 z-20 p-2 bg-white rounded-md shadow-md hover:bg-gray-100"
               >
-                {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+                <ChevronRight size={18} />
               </button>
-            </div>
+            )}
             
-            {isSidebarOpen && (
+            {/* Sidebar (Conditionally Visible) */}
+            <div className={`absolute h-full bg-white shadow-md transition-all duration-300 ${isSidebarOpen ? 'w-64 opacity-100 visible' : 'w-0 opacity-0 invisible'} flex flex-col z-10 overflow-hidden`}>
+              <div className="flex justify-between items-center p-4 border-b">
+                <h2 className="font-semibold">My Slide Decks</h2>
+                <button 
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-1 rounded hover:bg-gray-100"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              </div>
+              
               <div className="flex-1 overflow-y-auto">
                 {slideDecks.length === 0 ? (
                   <div className="p-4 text-gray-500 text-sm">No slide decks found</div>
@@ -712,30 +715,29 @@ function App() {
                   </ul>
                 )}
               </div>
-            )}
-            
-            <div className="p-4 border-t">
-              <button 
-                onClick={showNewSlideDeckUI}
-                className={`flex items-center justify-center p-2 w-full rounded bg-blue-500 text-white hover:bg-blue-600 ${!isSidebarOpen && 'p-1'}`}
-              >
-                <Plus size={isSidebarOpen ? 18 : 16} />
-                {isSidebarOpen && <span className="ml-2">New Slide Deck</span>}
-              </button>
-            </div>
-            
-            <div className="p-4 border-t">
-              <button 
-                onClick={handleLogout}
-                className={`flex items-center justify-center p-2 w-full rounded border border-gray-300 hover:bg-gray-100 ${!isSidebarOpen && 'p-1'}`}
-              >
-                {isSidebarOpen ? 'Logout' : '🚪'}
-              </button>
+              
+              <div className="p-4 border-t">
+                <button 
+                  onClick={showNewSlideDeckUI}
+                  className="flex items-center justify-center p-2 w-full rounded bg-blue-500 text-white hover:bg-blue-600"
+                >
+                  <Plus size={18} />
+                  <span className="ml-2">New Slide Deck</span>
+                </button>
+              </div>
+              
+              <div className="p-4 border-t">
+                <button 
+                  onClick={handleLogout}
+                  className="flex items-center justify-center p-2 w-full rounded border border-gray-300 hover:bg-gray-100"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
-          
           {/* Main Content */}
-          <div className="flex-1">
+          <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-12'}`}>
             <div className="min-h-screen">
               {showUploadUI && uploadStatus === 'idle' ? (
                 <div className="container mx-auto py-12">

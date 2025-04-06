@@ -72,7 +72,7 @@ export function PDFViewer({ file, currentSlide, onSlideChange, disabled }: PDFVi
             renderTextLayer={true}
             renderAnnotationLayer={true}
             className="shadow-lg"
-            width={containerWidth - 32} // Subtract padding (2 * 16px)
+            width={containerWidth} // Subtract padding (2 * 16px)
           />
         </Document>
       </div>

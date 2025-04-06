@@ -7,7 +7,6 @@ import { RefreshCcw } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 import OpenAI from 'openai';
 
-
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true // Use with caution, prefer backend
@@ -110,37 +109,47 @@ export function StudyGuideView({
   // });
 
   return (
-    <div className="h-full overflow-y-auto p-4">
-
-      {/* Always render a container for the current slide */}
-      <div className="mb-4 rounded-lg border border-gray-200">
-        <div className="px-4 py-2 border-b border-gray-200 flex items-center">
-          <span className="font-medium text-gray-800 flex-grow">Slide {currentSlide} Summary</span>
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={regenerateSummary}
-              disabled={isProcessing || isRegeneratingSummary}
-              className="text-blue-600 hover:bg-blue-100 p-1 rounded transition-colors"
-              title="Regenerate Summary"
-            >
-              {isRegeneratingSummary ? (
-                <RefreshCcw className="w-4 h-4 animate-spin" /> 
-              ) : (
-                <RefreshCcw className="w-4 h-4" />
-              )}
-            </button>
-            <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              Slide {currentSlide} 
-            </span>
-            <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              Slide {currentSlide} Summary
-            </span>
-            <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              Chat History
-            </span>
-          </div>
+    <div className="h-full flex flex-col">
+      {/* Persistent Top Banner */}
+      <div className="bg-blue-50 p-2 border-b flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center space-x-2">
+          <span className="text-sm font-medium text-blue-700">
+            Slide {currentSlide} Summary
+          </span>
         </div>
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={regenerateSummary}
+            disabled={isProcessing || isRegeneratingSummary}
+            className="text-blue-600 hover:bg-blue-100 p-1 rounded transition-colors flex items-center"
+            title="Regenerate Summary"
+          >
+            {isRegeneratingSummary ? (
+              <>
+                <RefreshCcw className="w-4 h-4 animate-spin mr-1" /> 
+                <span className="text-xs">Regenerating...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="w-4 h-4 mr-1" />
+                <span className="text-xs">Regenerate</span>
+              </>
+            )}
+          </button>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Slide {currentSlide} 
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Slide {currentSlide} Summary
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Chat History
+          </span>
+        </div>
+      </div>
 
+      {/* Content Area with Overflow */}
+      <div className="flex-1 overflow-y-auto p-4">
         {isProcessing || isRegeneratingSummary ? (
           <div className="flex justify-center items-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
@@ -153,39 +162,37 @@ export function StudyGuideView({
           sections
             .filter((section) => section.slideNumber === currentSlide)
             .map((section) => (
-              <div key={section.slideNumber} className="px-4 py-2">
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {section.summary.split(/(\\\(.*?\\\)|\\\[.*?\\\])/).map((part, index) => {
-                    try {
-                      if (part.startsWith('\\(') && part.endsWith('\\)')) {
-                        // Inline math
-                        return <InlineMath key={index}>{part.slice(2, -2).trim()}</InlineMath>;
-                      } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
-                        // Block math
-                        return <BlockMath key={index}>{part.slice(2, -2).trim()}</BlockMath>;
-                      }
-                      // Regular text
-                      return part;
-                    } catch (error) {
-                      // Fallback to plain text if LaTeX rendering fails
-                      console.warn('LaTeX rendering error:', error);
-                      return part;
+              <div key={section.slideNumber} className="text-gray-700 whitespace-pre-wrap">
+                {section.summary.split(/(\\\(.*?\\\)|\\\[.*?\\\])/).map((part, index) => {
+                  try {
+                    if (part.startsWith('\\(') && part.endsWith('\\)')) {
+                      // Inline math
+                      return <InlineMath key={index}>{part.slice(2, -2).trim()}</InlineMath>;
+                    } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
+                      // Block math
+                      return <BlockMath key={index}>{part.slice(2, -2).trim()}</BlockMath>;
                     }
-                  })}
-                </p>
+                    // Regular text
+                    return part;
+                  } catch (error) {
+                    // Fallback to plain text if LaTeX rendering fails
+                    console.warn('LaTeX rendering error:', error);
+                    return part;
+                  }
+                })}
               </div>
             ))
         )}
-      </div>
 
-      {/* Additional debug information if no sections found */}
-      {!isProcessing && sections.filter((section) => section.slideNumber === currentSlide).length === 0 && (
-        <div className="bg-red-100 p-2 rounded">
-          <p className="text-red-800">
-            No sections found for slide {currentSlide}
-          </p>
-        </div>
-      )}
+        {/* Additional debug information if no sections found */}
+        {!isProcessing && sections.filter((section) => section.slideNumber === currentSlide).length === 0 && (
+          <div className="bg-red-100 p-2 rounded">
+            <p className="text-red-800">
+              No sections found for slide {currentSlide}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
