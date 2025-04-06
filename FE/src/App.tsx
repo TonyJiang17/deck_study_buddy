@@ -258,15 +258,31 @@ function App() {
         const pdf = await pdfjs.getDocument(typedArray).promise;
         const totalPages = pdf.numPages;
 
-        const firstSlideImage = await captureSlide(file, 1);
-        console.log('First slide image:', firstSlideImage);
-        if (firstSlideImage) {
-          setSlideImages([firstSlideImage]);
-          const firstSection = await processFirstSlide(firstSlideImage, slideDeckId);
-          console.log('First section:', firstSection);
-          setStudyGuide({ sections: [firstSection] });
+        // Check if we already have summaries for this slide deck
+        const existingSummaries = await fetchSlideSummaries(slideDeckId);
+        
+        if (existingSummaries.length > 0) {
+          // If we have existing summaries, use them
+          console.log('Using existing summaries from backend');
+          setStudyGuide({ sections: existingSummaries });
+          
+          // We still need to capture the first slide image for the UI
+          const firstSlideImage = await captureSlide(file, 1);
+          if (firstSlideImage) {
+            setSlideImages([firstSlideImage]);
+          }
         } else {
-          console.error('Failed to capture first slide image');
+          // If no existing summaries, process the first slide
+          const firstSlideImage = await captureSlide(file, 1);
+          console.log('First slide image:', firstSlideImage);
+          if (firstSlideImage) {
+            setSlideImages([firstSlideImage]);
+            const firstSection = await processFirstSlide(firstSlideImage, slideDeckId);
+            console.log('First section:', firstSection);
+            setStudyGuide({ sections: [firstSection] });
+          } else {
+            console.error('Failed to capture first slide image');
+          }
         }
         
         setTotalSlides(totalPages);
@@ -430,6 +446,81 @@ function App() {
   const extractChatHistory = () => {
     return chatHistory;
   };
+
+  // Function to fetch slide summaries from the backend
+  const fetchSlideSummaries = async (slideDeckId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No active session for fetching slide summaries');
+        return [];
+      }
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries?slide_deck_id=${slideDeckId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to fetch slide summaries:', await response.text());
+        return [];
+      }
+      
+      const data = await response.json();
+      console.log('Fetched slide summaries:', data);
+      
+      // Convert the backend format to StudySection format
+      return data.slide_summaries.map((summary: any) => ({
+        slideNumber: summary.slide_number,
+        summary: summary.summary_text,
+        content: '' // We don't have the image content from the backend
+      }));
+    } catch (error) {
+      console.error('Error fetching slide summaries:', error);
+      return [];
+    }
+  };
+
+  // Function to load existing slide decks for the user
+  const loadUserSlideDecks = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No active session for loading slide decks');
+        return;
+      }
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-decks`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to fetch slide decks:', await response.text());
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('User slide decks:', data);
+      
+      // You can add state and UI to display the user's existing slide decks here
+    } catch (error) {
+      console.error('Error loading slide decks:', error);
+    }
+  };
+
+  // Call loadUserSlideDecks when the user is authenticated
+  useEffect(() => {
+    if (user) {
+      loadUserSlideDecks();
+    }
+  }, [user]);
 
   // Render login/logout buttons or app content
   if (isLoading) {
