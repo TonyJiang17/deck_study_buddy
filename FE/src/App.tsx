@@ -352,8 +352,11 @@ function App() {
       return;
     }
 
-    // Allow moving backward
-    if (newSlide < currentSlide) {
+    // Check if the new slide already has a summary
+    const existingSummary = studyGuide.sections.find(s => s.slideNumber === newSlide);
+    
+    // Allow moving backward or to slides with existing summaries without processing
+    if (newSlide < currentSlide || existingSummary) {
       setCurrentSlide(newSlide);
       return;
     }
@@ -374,8 +377,7 @@ function App() {
       const previousSection = studyGuide.sections.find(s => s.slideNumber === newSlide - 1);
       const previousSlideImage = slideImages.find(img => img.name === `slide_${newSlide - 1}.png`);
       
-      // console.log(currentSlide, previousSection);
-      if (!previousSection ) throw new Error('Previous summary data not found');
+      if (!previousSection) throw new Error('Previous summary data not found');
       if (!previousSlideImage) throw new Error('Previous slide image not found');
 
       // Process the new slide
@@ -586,6 +588,7 @@ function App() {
       
       // Fetch summaries for this slide deck
       const summaries = await fetchSlideSummaries(slideDeckId);
+      console.log('Fetched summaries:', summaries);
       if (summaries.length > 0) {
         setStudyGuide({ sections: summaries });
         

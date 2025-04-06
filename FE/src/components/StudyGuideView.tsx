@@ -159,29 +159,32 @@ export function StudyGuideView({
           </div>
         ) : (
           // Render existing sections for the current slide
-          sections
-            .filter((section) => section.slideNumber === currentSlide)
-            .map((section) => (
-              <div key={section.slideNumber} className="text-gray-700 whitespace-pre-wrap">
-                {section.summary.split(/(\\\(.*?\\\)|\\\[.*?\\\])/).map((part, index) => {
-                  try {
-                    if (part.startsWith('\\(') && part.endsWith('\\)')) {
-                      // Inline math
-                      return <InlineMath key={index}>{part.slice(2, -2).trim()}</InlineMath>;
-                    } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
-                      // Block math
-                      return <BlockMath key={index}>{part.slice(2, -2).trim()}</BlockMath>;
+          // Use a key based on the current slide to force re-render when slide changes
+          <div key={`slide-summary-${currentSlide}`} className="text-gray-700 whitespace-pre-wrap">
+            {sections
+              .filter((section) => section.slideNumber === currentSlide)
+              .map((section) => (
+                <React.Fragment key={section.slideNumber}>
+                  {section.summary.split(/(\\\(.*?\\\)|\\\[.*?\\\])/).map((part, index) => {
+                    try {
+                      if (part.startsWith('\\(') && part.endsWith('\\)')) {
+                        // Inline math
+                        return <InlineMath key={index}>{part.slice(2, -2).trim()}</InlineMath>;
+                      } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
+                        // Block math
+                        return <BlockMath key={index}>{part.slice(2, -2).trim()}</BlockMath>;
+                      }
+                      // Regular text
+                      return part;
+                    } catch (error) {
+                      // Fallback to plain text if LaTeX rendering fails
+                      console.warn('LaTeX rendering error:', error);
+                      return part;
                     }
-                    // Regular text
-                    return part;
-                  } catch (error) {
-                    // Fallback to plain text if LaTeX rendering fails
-                    console.warn('LaTeX rendering error:', error);
-                    return part;
-                  }
-                })}
-              </div>
-            ))
+                  })}
+                </React.Fragment>
+              ))}
+          </div>
         )}
 
         {/* Additional debug information if no sections found */}
