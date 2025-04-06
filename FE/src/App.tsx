@@ -30,6 +30,7 @@ function App() {
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentSlideDeckId, setCurrentSlideDeckId] = useState<string | null>(null);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   // Generate nonce for Google ID token sign-in
@@ -217,16 +218,12 @@ function App() {
         throw new Error('No active session');
       }
 
-      console.log('Full Session:', session);
-      console.log('Access Token:', session.access_token);
-      
-      // Upload PDF directly to Supabase storage
+      // Upload the PDF to Supabase Storage
       const pdfUrl = await uploadPDFToStorage(file, user.id);
-      console.log('PDF uploaded successfully:', pdfUrl);
-      
-      // Create SlideDeck record via backend API
-      console.log('Creating SlideDeck record...');
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/slide-decks/upload`, {
+      console.log('PDF uploaded to:', pdfUrl);
+
+      // Create a SlideDeck record in the database
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-decks/upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -239,17 +236,23 @@ function App() {
       });
 
       console.log('Response Status:', response.status);
-      const responseBody = await response.text();
+      const responseBody = await response.json();
       console.log('Response Body:', responseBody.slide_deck);
-
+      
       if (!response.ok) {
         throw new Error('Failed to create slide deck record');
       }
+      
+      // Save the slide deck ID for later use
+      const slideDeckId = responseBody.slide_deck.id;
+      setCurrentSlideDeckId(slideDeckId);
+      console.log('Slide Deck ID:', slideDeckId);
       
       setUploadStatus('processing');
 
       // Process the PDF
       const fileReader = new FileReader();
+
       fileReader.onload = async (e) => {
         const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
         const pdf = await pdfjs.getDocument(typedArray).promise;
@@ -259,7 +262,7 @@ function App() {
         console.log('First slide image:', firstSlideImage);
         if (firstSlideImage) {
           setSlideImages([firstSlideImage]);
-          const firstSection = await processFirstSlide(firstSlideImage);
+          const firstSection = await processFirstSlide(firstSlideImage, slideDeckId);
           console.log('First section:', firstSection);
           setStudyGuide({ sections: [firstSection] });
         } else {
@@ -335,30 +338,21 @@ function App() {
       return;
     }
 
-    // Moving forward
-    
-    // Check if we already have the next slide's summary
-    if (studyGuide.sections.find(s => s.slideNumber === newSlide)) {
-      setCurrentSlide(newSlide);
-      return;
-    }
-
-    // Immediately update current slide
-    setCurrentSlide(newSlide);
-    
-    // Start processing the new slide
     setIsProcessing(true);
+    setCurrentSlide(newSlide);
+
     try {
       // Capture the new slide image
-      const newSlideImage = await captureSlide(selectedFile!, newSlide);
-      if (!newSlideImage) throw new Error('Failed to capture slide');
+      if (!selectedFile) throw new Error('No file selected');
+      const newSlideImage = await captureSlide(selectedFile, newSlide);
+      if (!newSlideImage) throw new Error('Failed to capture slide image');
 
-      // Update state
+      // Add the new slide image to our collection
       setSlideImages(prev => [...prev, newSlideImage]);
 
-      // Get the previous slide's data
+      // Get the previous slide's summary and image for context
       const previousSection = studyGuide.sections.find(s => s.slideNumber === newSlide - 1);
-      const previousSlideImage = slideImages[newSlide - 2];
+      const previousSlideImage = slideImages.find(img => img.name === `slide_${newSlide - 1}.png`);
       
       // console.log(currentSlide, previousSection);
       if (!previousSection ) throw new Error('Previous summary data not found');
@@ -369,7 +363,8 @@ function App() {
         newSlide,
         newSlideImage,
         previousSection,
-        previousSlideImage
+        previousSlideImage,
+        currentSlideDeckId || undefined
       );
 
       setStudyGuide(prev => ({ sections: [...prev.sections, newSection] }));
@@ -381,16 +376,49 @@ function App() {
   };
 
   // Function to regenerate summary for a specific slide
-  const handleSummaryRegenerate = (slideNumber: number, newSummary: string) => {
-    // Update the summary for the specific slide in the studyGuide state
-    setStudyGuide(prev => ({
-      ...prev,
-      sections: prev.sections.map(section => 
-        section.slideNumber === slideNumber 
-          ? { ...section, summary: newSummary } 
-          : section
-      )
-    }));
+  const handleSummaryRegenerate = async (slideNumber: number, newSummary: string) => {
+    try {
+      // Update the summary in the local state
+      setStudyGuide(prev => ({
+        ...prev,
+        sections: prev.sections.map(section => 
+          section.slideNumber === slideNumber 
+            ? { ...section, summary: newSummary } 
+            : section
+        )
+      }));
+      
+      // If we have a slide deck ID, update the summary in the backend
+      if (currentSlideDeckId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          console.error('No active session for summary regeneration');
+          return;
+        }
+        
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/regenerate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            slide_deck_id: currentSlideDeckId,
+            slide_number: slideNumber,
+            summary_text: newSummary
+          })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to regenerate summary on backend:', await response.text());
+        } else {
+          console.log('Summary regenerated successfully on backend');
+        }
+      }
+    } catch (error) {
+      console.error('Error regenerating summary:', error);
+    }
   };
 
   // Function to update chat history

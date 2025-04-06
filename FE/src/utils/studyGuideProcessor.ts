@@ -1,5 +1,6 @@
-import type { StudyGuide, StudySection } from '../types';
+import type { StudySection } from '../types';
 import OpenAI from 'openai';
+import { supabase } from '../lib/supabase';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -64,7 +65,7 @@ async function generateSlideSummary(
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages,
+      messages: messages as any,
       max_tokens: 150
     });
 
@@ -83,13 +84,47 @@ async function generateSlideSummary(
 }
 
 async function processFirstSlide(
-  slideImage: File
+  slideImage: File,
+  slideDeckId?: string
 ): Promise<StudySection> {
   console.log('Processing first slide, image:', slideImage);
   try {
+    // Generate summary using OpenAI
     const { summary, content } = await generateSlideSummary(slideImage);
     console.log('First slide summary:', summary);
-    console.log('First slide content:', content);
+    
+    // If we have a slideDeckId, save the summary to the backend
+    if (slideDeckId) {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        
+        if (!token) {
+          console.error('No auth token available');
+        } else {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              slide_deck_id: slideDeckId,
+              slide_number: 1,
+              summary_text: summary
+            })
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to save summary to backend:', await response.text());
+          } else {
+            console.log('Summary saved to backend successfully');
+          }
+        }
+      } catch (apiError) {
+        console.error('API error saving summary:', apiError);
+      }
+    }
+    
     return {
       slideNumber: 1,
       content,
@@ -109,18 +144,61 @@ async function processNextSlide(
   slideNumber: number,
   currentSlideImage: File,
   previousSection: StudySection,
-  previousSlideImage: File
+  previousSlideImage: File,
+  slideDeckId?: string
 ): Promise<StudySection> {
-  const { summary, content } = await generateSlideSummary(
-    currentSlideImage,
-    { summary: previousSection.summary, image: previousSlideImage }
-  );
+  try {
+    // Generate summary using OpenAI
+    const { summary, content } = await generateSlideSummary(
+      currentSlideImage,
+      { summary: previousSection.summary, image: previousSlideImage }
+    );
 
-  return {
-    slideNumber,
-    content,
-    summary
-  };
+    // If we have a slideDeckId, save the summary to the backend
+    if (slideDeckId) {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        
+        if (!token) {
+          console.error('No auth token available');
+        } else {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              slide_deck_id: slideDeckId,
+              slide_number: slideNumber,
+              summary_text: summary
+            })
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to save summary to backend:', await response.text());
+          } else {
+            console.log('Summary saved to backend successfully');
+          }
+        }
+      } catch (apiError) {
+        console.error('API error saving summary:', apiError);
+      }
+    }
+
+    return {
+      slideNumber,
+      content,
+      summary
+    };
+  } catch (error) {
+    console.error('Error processing slide:', error);
+    return {
+      slideNumber,
+      content: '',
+      summary: 'Failed to generate summary'
+    };
+  }
 }
 
 export {

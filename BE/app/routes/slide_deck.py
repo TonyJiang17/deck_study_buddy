@@ -78,5 +78,22 @@ async def upload_slide_deck(
             "slide_deck": slide_deck
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))        
+
+@router.get("")
+async def get_user_slide_decks(user_id: str = Depends(get_current_user)):
+    """
+    Get all slide decks for the authenticated user
+    
+    :param user_id: ID of the authenticated user
+    :return: List of slide decks
+    """
+    try:
+        # Fetch slide decks for the user
+        slide_decks = supabase_service.get_slide_decks_by_user_id(user_id)
         
+        return {
+            "slide_decks": slide_decks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
