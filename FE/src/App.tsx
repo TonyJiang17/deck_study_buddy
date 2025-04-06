@@ -4,10 +4,9 @@ import { FileUpload } from './components/FileUpload';
 import { StudyGuideView } from './components/StudyGuideView';
 import { PDFViewer } from './components/PDFViewer';
 import { ChatInterface } from './components/ChatInterface'
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Plus, FileText } from 'lucide-react';
 import { Document, pdfjs } from 'react-pdf';
 import type { StudyGuide, UploadStatus, ProcessingProgress, StudySection } from './types';
-import { generateStudyGuide as generateSingleSlideGuide } from './utils/studyGuideProcessor';
 import { processFirstSlide, processNextSlide } from './utils/studyGuideProcessor';
 
 // Configure PDF.js worker
@@ -31,6 +30,9 @@ function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentSlideDeckId, setCurrentSlideDeckId] = useState<string | null>(null);
+  const [slideDecks, setSlideDecks] = useState<Array<{id: string, title: string, pdf_url: string}>>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showUploadUI, setShowUploadUI] = useState(true);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   // Generate nonce for Google ID token sign-in
@@ -113,7 +115,6 @@ function App() {
       document.body.removeChild(script);
     };
   }, []);
-  
 
   useEffect(() => {
     // Check current session
@@ -173,16 +174,16 @@ function App() {
     };
   }, []);
 
-  // Login function
-  const handleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google'
-    });
+  // // Login function
+  // const handleLogin = async () => {
+  //   const { error } = await supabase.auth.signInWithOAuth({
+  //     provider: 'google'
+  //   });
 
-    if (error) {
-      console.error('Login error:', error);
-    }
-  };
+  //   if (error) {
+  //     console.error('Login error:', error);
+  //   }
+  // };
 
   // Logout function
   const handleLogout = async () => {
@@ -197,6 +198,7 @@ function App() {
     console.log('File selected:', file.name);
     setSelectedFile(file);
     setUploadStatus('uploading');
+    setShowUploadUI(false);
 
     try {
       // Get the current user
@@ -230,23 +232,26 @@ function App() {
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          pdf_url: pdfUrl,
-          title: file.name
+          title: file.name.replace(/\.pdf$/i, ''),
+          pdf_url: pdfUrl
         })
       });
 
       console.log('Response Status:', response.status);
-      const responseBody = await response.json();
-      console.log('Response Body:', responseBody.slide_deck);
+      const responseData = await response.json();
+      console.log('Response Data:', responseData);
       
       if (!response.ok) {
         throw new Error('Failed to create slide deck record');
       }
       
       // Save the slide deck ID for later use
-      const slideDeckId = responseBody.slide_deck.id;
+      const slideDeckId = responseData.slide_deck.id;
       setCurrentSlideDeckId(slideDeckId);
       console.log('Slide Deck ID:', slideDeckId);
+      
+      // Refresh the list of slide decks
+      loadUserSlideDecks();
       
       setUploadStatus('processing');
 
@@ -278,7 +283,6 @@ function App() {
           if (firstSlideImage) {
             setSlideImages([firstSlideImage]);
             const firstSection = await processFirstSlide(firstSlideImage, slideDeckId);
-            console.log('First section:', firstSection);
             setStudyGuide({ sections: [firstSection] });
           } else {
             console.error('Failed to capture first slide image');
@@ -293,6 +297,7 @@ function App() {
     } catch (error) {
       console.error('Error processing PDF:', error);
       setUploadStatus('error');
+      setShowUploadUI(true);
     }
   };
 
@@ -339,7 +344,6 @@ function App() {
       return null;
     }
   };
-  
 
   const handleSlideChange = async (newSlide: number) => {
     console.log(chatHistory)
@@ -509,7 +513,10 @@ function App() {
       const data = await response.json();
       console.log('User slide decks:', data);
       
-      // You can add state and UI to display the user's existing slide decks here
+      // Store the slide decks in state
+      if (data.slide_decks && Array.isArray(data.slide_decks)) {
+        setSlideDecks(data.slide_decks);
+      }
     } catch (error) {
       console.error('Error loading slide decks:', error);
     }
@@ -522,94 +529,247 @@ function App() {
     }
   }, [user]);
 
+  // Function to load a specific slide deck
+  const loadSlideDeck = async (slideDeckId: string, pdfUrl: string) => {
+    try {
+      setIsLoading(true);
+      setCurrentSlideDeckId(slideDeckId);
+      setShowUploadUI(false);
+      
+      // Fetch the PDF file from the URL
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch PDF file');
+      }
+      
+      const pdfBlob = await response.blob();
+      const pdfFile = new File([pdfBlob], 'slide_deck.pdf', { type: 'application/pdf' });
+      setSelectedFile(pdfFile);
+      
+      // Fetch summaries for this slide deck
+      const summaries = await fetchSlideSummaries(slideDeckId);
+      if (summaries.length > 0) {
+        setStudyGuide({ sections: summaries });
+        
+        // Process the PDF to get total pages and first slide image
+        const fileReader = new FileReader();
+        fileReader.onload = async (e) => {
+          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
+          const pdf = await pdfjs.getDocument(typedArray).promise;
+          const totalPages = pdf.numPages;
+          setTotalSlides(totalPages);
+          
+          // Capture the first slide image for display
+          const firstSlideImage = await captureSlide(pdfFile, 1);
+          if (firstSlideImage) {
+            setSlideImages([firstSlideImage]);
+          }
+          
+          setUploadStatus('complete');
+          setIsLoading(false);
+        };
+        
+        fileReader.readAsArrayBuffer(pdfFile);
+      } else {
+        // If no summaries exist, process as a new upload
+        setUploadStatus('processing');
+        
+        const fileReader = new FileReader();
+        fileReader.onload = async (e) => {
+          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
+          const pdf = await pdfjs.getDocument(typedArray).promise;
+          const totalPages = pdf.numPages;
+          
+          const firstSlideImage = await captureSlide(pdfFile, 1);
+          if (firstSlideImage) {
+            setSlideImages([firstSlideImage]);
+            const firstSection = await processFirstSlide(firstSlideImage, slideDeckId);
+            setStudyGuide({ sections: [firstSection] });
+          }
+          
+          setTotalSlides(totalPages);
+          setUploadStatus('complete');
+          setIsLoading(false);
+        };
+        
+        fileReader.readAsArrayBuffer(pdfFile);
+      }
+    } catch (error) {
+      console.error('Error loading slide deck:', error);
+      setUploadStatus('error');
+      setIsLoading(false);
+      setShowUploadUI(true);
+    }
+  };
+
+  // Function to reset to upload UI
+  const showNewSlideDeckUI = () => {
+    setShowUploadUI(true);
+    setCurrentSlideDeckId(null);
+    setSelectedFile(null);
+    setStudyGuide({ sections: [] });
+    setSlideImages([]);
+    setUploadStatus('idle');
+    setCurrentSlide(1);
+  };
+
   // Render login/logout buttons or app content
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="flex justify-center items-center h-screen">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <span className="ml-2">Loading...</span>
+    </div>;
   }
 
   return (
     <div>
       {user ? (
-        <>
-          <button onClick={handleLogout}>Logout</button>
-          <div className="min-h-screen bg-gray-50">
-            {uploadStatus === 'idle' ? (
-              <div className="container mx-auto py-12">
-                <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
-                <FileUpload onFileSelect={handleFileSelect} status={uploadStatus} />
-              </div>
-            ) : uploadStatus === 'uploading' || uploadStatus === 'processing' ? (
-              <div className="h-screen flex items-center justify-center">
-                <div className="text-center">
-                  <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
-                  <p className="text-lg text-gray-700 mb-2">
-                    {uploadStatus === 'uploading' ? 'Uploading your slides...' : 'Generating your study guide...'}
-                  </p>
-                  {uploadStatus === 'processing' && (
-                    <p className="text-sm text-gray-500">
-                      Processing slide {progress.currentSlide} of {progress.totalSlides}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : uploadStatus === 'error' ? (
-              <div className="h-screen flex items-center justify-center">
-                <div className="text-center text-red-600">
-                  <p className="text-lg">An error occurred while processing your slides.</p>
-                  <button
-                    onClick={() => setUploadStatus('idle')}
-                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="h-screen flex">
-                {/* PDF Viewer Panel (Left) */}
-                <div className="flex-1 overflow-auto p-4 border-r"> {/* Left panel */}
-                  <PDFViewer 
-                    file={selectedFile}
-                    currentSlide={currentSlide}
-                    onSlideChange={handleSlideChange}
-                    disabled={isProcessing}
-                  />
-                </div>
-
-                {/* Study Guide and Chat Panel (Right) */}
-                <div className="w-1/2 flex flex-col">
-                  <div className="flex-grow overflow-y-auto">
-                    <StudyGuideView
-                      sections={studyGuide.sections}
-                      currentSlide={currentSlide}
-                      isProcessing={isProcessing}
-                      onSummaryRegenerate={handleSummaryRegenerate}
-                      chatHistory={chatHistory}
-                    />
-                  </div>
-                  <div className="h-1/2 border-t border-gray-200">
-                    <ChatInterface
-                      currentSlide={currentSlide}
-                      currentSlideSummary={
-                        studyGuide.sections.find((s) => s.slideNumber === currentSlide)?.summary || ''
-                      }
-                      onMessagesChange={handleMessagesChange}
-                    />
-                  </div>
-                </div>
+        <div className="flex min-h-screen bg-gray-50">
+          {/* Sidebar for Slide Decks */}
+          <div className={`bg-white shadow-md transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-12'} flex flex-col`}>
+            <div className="flex justify-between items-center p-4 border-b">
+              {isSidebarOpen && <h2 className="font-semibold">My Slide Decks</h2>}
+              <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-1 rounded hover:bg-gray-100"
+              >
+                {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+              </button>
+            </div>
+            
+            {isSidebarOpen && (
+              <div className="flex-1 overflow-y-auto">
+                {slideDecks.length === 0 ? (
+                  <div className="p-4 text-gray-500 text-sm">No slide decks found</div>
+                ) : (
+                  <ul className="py-2">
+                    {slideDecks.map(deck => (
+                      <li key={deck.id} className="px-4 py-2">
+                        <button 
+                          onClick={() => loadSlideDeck(deck.id, deck.pdf_url)}
+                          className={`w-full text-left flex items-center p-2 rounded hover:bg-gray-100 ${currentSlideDeckId === deck.id ? 'bg-blue-50 text-blue-600' : ''}`}
+                        >
+                          <FileText size={16} className="mr-2" />
+                          <span className="truncate">{deck.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
+            
+            <div className="p-4 border-t">
+              <button 
+                onClick={showNewSlideDeckUI}
+                className={`flex items-center justify-center p-2 w-full rounded bg-blue-500 text-white hover:bg-blue-600 ${!isSidebarOpen && 'p-1'}`}
+              >
+                <Plus size={isSidebarOpen ? 18 : 16} />
+                {isSidebarOpen && <span className="ml-2">New Slide Deck</span>}
+              </button>
+            </div>
+            
+            <div className="p-4 border-t">
+              <button 
+                onClick={handleLogout}
+                className={`flex items-center justify-center p-2 w-full rounded border border-gray-300 hover:bg-gray-100 ${!isSidebarOpen && 'p-1'}`}
+              >
+                {isSidebarOpen ? 'Logout' : '🚪'}
+              </button>
+            </div>
           </div>
-        </>
+          
+          {/* Main Content */}
+          <div className="flex-1">
+            <div className="min-h-screen">
+              {showUploadUI && uploadStatus === 'idle' ? (
+                <div className="container mx-auto py-12">
+                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <FileUpload onFileSelect={handleFileSelect} status={uploadStatus} />
+                </div>
+              ) : uploadStatus === 'uploading' ? (
+                <div className="container mx-auto py-12 flex flex-col items-center">
+                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <div className="flex items-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <span className="ml-2">Uploading your PDF...</span>
+                  </div>
+                </div>
+              ) : uploadStatus === 'processing' ? (
+                <div className="container mx-auto py-12 flex flex-col items-center">
+                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <div className="flex items-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <span className="ml-2">Processing your slides...</span>
+                  </div>
+                </div>
+              ) : uploadStatus === 'error' ? (
+                <div className="container mx-auto py-12 flex flex-col items-center">
+                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <div className="text-center">
+                    <p className="text-lg">An error occurred while processing your slides.</p>
+                    <button
+                      onClick={() => setUploadStatus('idle')}
+                      className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-screen flex">
+                  {/* PDF Viewer Panel (Left) */}
+                  <div className="flex-1 overflow-auto p-4 border-r"> {/* Left panel */}
+                    <PDFViewer 
+                      file={selectedFile}
+                      currentSlide={currentSlide}
+                      onSlideChange={handleSlideChange}
+                      disabled={isProcessing}
+                    />
+                  </div>
+
+                  {/* Study Guide and Chat Panel (Right) */}
+                  <div className="w-1/2 flex flex-col">
+                    <div className="flex-grow overflow-y-auto">
+                      <StudyGuideView
+                        sections={studyGuide.sections}
+                        currentSlide={currentSlide}
+                        isProcessing={isProcessing}
+                        onSummaryRegenerate={handleSummaryRegenerate}
+                        chatHistory={chatHistory}
+                      />
+                    </div>
+                    <div className="h-1/2 border-t border-gray-200">
+                      <ChatInterface
+                        currentSlide={currentSlide}
+                        currentSlideSummary={
+                          studyGuide.sections.find((s) => s.slideNumber === currentSlide)?.summary || ''
+                        }
+                        onMessagesChange={handleMessagesChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="h-screen flex items-center justify-center flex-col bg-gray-50">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2">AI Study Buddy</h1>
-            <p className="text-gray-600">Your intelligent companion for studying slide decks</p>
-          </div>
-          <div className="bg-white p-8 rounded-lg shadow-md">
-            {/* <h2 className="text-xl font-semibold mb-6 text-center">Sign in to continue</h2> */}
-            <div ref={googleButtonRef} className="flex justify-center" />
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+          <div className="p-8 bg-white rounded-lg shadow-md max-w-md w-full">
+            <h1 className="text-2xl font-bold text-center mb-6">AI Study Buddy</h1>
+            <p className="mb-6 text-center text-gray-600">
+              Sign in to create and manage your study guides
+            </p>
+            {/* <div className="flex justify-center">
+              <button
+                onClick={handleLogin}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Sign in with Google
+              </button>
+            </div> */}
+            <div ref={googleButtonRef} className="mt-4 flex justify-center"></div>
           </div>
         </div>
       )}
