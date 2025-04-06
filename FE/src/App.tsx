@@ -163,7 +163,13 @@ function App() {
         if (event === 'SIGNED_IN') {
           // Additional first-time login logic can go here
           console.log('User signed in for the first time or logged in again');
-          window.google?.accounts.id.cancel(); // 
+          window.google?.accounts.id.cancel(); // Hide One Tap UI
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out');
+          // Reinitialize Google One Tap after logout
+          setTimeout(() => {
+            initializeGoogleOneTap();
+          }, 500); // Small delay to ensure auth state is fully updated
         }
       }
     );
