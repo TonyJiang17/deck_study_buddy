@@ -4,7 +4,7 @@ import { FileUpload } from './components/FileUpload';
 import { StudyGuideView } from './components/StudyGuideView';
 import { PDFViewer } from './components/PDFViewer';
 import { ChatInterface } from './components/ChatInterface'
-import { Loader2, ChevronLeft, ChevronRight, Plus, FileText } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Plus, FileText, Trash2 } from 'lucide-react';
 import { Document, pdfjs } from 'react-pdf';
 import type { StudyGuide, UploadStatus, ProcessingProgress, StudySection } from './types';
 import { processFirstSlide, processNextSlide } from './utils/studyGuideProcessor';
@@ -91,7 +91,7 @@ function App() {
     });
 
     // Also display the One Tap UI
-    window.google.accounts.id.prompt();
+    // window.google.accounts.id.prompt();
   };
 
   useEffect(() => {
@@ -101,12 +101,15 @@ function App() {
     script.defer = true;
   
     script.onload = () => {
-      const waitForRef = setInterval(() => {
-        if (googleButtonRef.current && window.google?.accounts?.id) {
-          clearInterval(waitForRef);
-          initializeGoogleOneTap(); // now the ref exists
-        }
-      }, 100); // check every 100ms until ready
+      // const waitForRef = setInterval(() => {
+      //   if (googleButtonRef.current && window.google?.accounts?.id) {
+      //     clearInterval(waitForRef);
+      //     initializeGoogleOneTap(); // now the ref exists
+      //   }
+      // }, 100); // check every 100ms until ready
+      script.onload = () => {
+        console.log('Google One Tap script loaded');
+      };
     };
   
     document.body.appendChild(script);
@@ -120,10 +123,10 @@ function App() {
     // Check current session
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('hello', session?.user.id)
       if (session?.user) {
         // User is logged in
         setUser(session.user);
+        window.google?.accounts.id.cancel();
         
         // Optional: Check if user exists in your database
         // If not, create a new user record
@@ -149,6 +152,10 @@ function App() {
             console.error('Error creating user:', insertError);
           }
         }
+      } else {
+        if (window.google?.accounts?.id && googleButtonRef.current) {
+          initializeGoogleOneTap();
+        }
       }
       
       setIsLoading(false);
@@ -164,6 +171,7 @@ function App() {
         if (event === 'SIGNED_IN') {
           // Additional first-time login logic can go here
           console.log('User signed in for the first time or logged in again');
+          window.google?.accounts.id.cancel(); // 👈 Cancel One Tap
         }
       }
     );
@@ -529,6 +537,44 @@ function App() {
     }
   }, [user]);
 
+  // Function to delete a slide deck
+  const deleteUserSlideDeck = async (slideDeckId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No active session');
+        return;
+      }
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-decks/${slideDeckId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to delete slide deck');
+      }
+      
+      // Remove the deleted slide deck from the list
+      setSlideDecks(prevDecks => prevDecks.filter(deck => deck.id !== slideDeckId));
+      
+      // If the current slide deck was deleted, reset to upload UI
+      if (currentSlideDeckId === slideDeckId) {
+        showNewSlideDeckUI();
+      }
+      
+      // Optional: Show a success toast or notification
+      console.log('Slide deck deleted successfully');
+    } catch (error) {
+      console.error('Error deleting slide deck:', error);
+      // Optional: Show an error toast or notification
+    }
+  };
+
   // Function to load a specific slide deck
   const loadSlideDeck = async (slideDeckId: string, pdfUrl: string) => {
     try {
@@ -644,13 +690,22 @@ function App() {
                 ) : (
                   <ul className="py-2">
                     {slideDecks.map(deck => (
-                      <li key={deck.id} className="px-4 py-2">
+                      <li key={deck.id} className="px-4 py-2 group flex items-center justify-between">
                         <button 
                           onClick={() => loadSlideDeck(deck.id, deck.pdf_url)}
-                          className={`w-full text-left flex items-center p-2 rounded hover:bg-gray-100 ${currentSlideDeckId === deck.id ? 'bg-blue-50 text-blue-600' : ''}`}
+                          className={`flex-grow text-left flex items-center p-2 rounded hover:bg-gray-100 ${currentSlideDeckId === deck.id ? 'bg-blue-50 text-blue-600' : ''}`}
                         >
                           <FileText size={16} className="mr-2" />
                           <span className="truncate">{deck.title}</span>
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent loading the deck when deleting
+                            deleteUserSlideDeck(deck.id);
+                          }}
+                          className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded ml-2 transition-colors"
+                        >
+                          <Trash2 size={16} />
                         </button>
                       </li>
                     ))}
@@ -769,7 +824,7 @@ function App() {
                 Sign in with Google
               </button>
             </div> */}
-            <div ref={googleButtonRef} className="mt-4 flex justify-center"></div>
+            {!user && <div ref={googleButtonRef} className="mt-4 flex justify-center"></div>}
           </div>
         </div>
       )}

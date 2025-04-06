@@ -97,3 +97,34 @@ async def get_user_slide_decks(user_id: str = Depends(get_current_user)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{slide_deck_id}")
+async def delete_slide_deck(
+    slide_deck_id: str, 
+    user_id: str = Depends(get_current_user)
+):
+    """
+    Delete a slide deck and its associated summaries
+    
+    :param slide_deck_id: ID of the slide deck to delete
+    :param user_id: ID of the authenticated user
+    :return: Deletion confirmation
+    """
+    try:
+        # First, verify the slide deck belongs to the user
+        slide_deck = supabase_service.get_slide_deck_by_id(slide_deck_id)
+        
+        if not slide_deck or slide_deck['user_id'] != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this slide deck")
+        
+        # Delete slide summaries first
+        supabase_service.delete_slide_summaries_by_deck_id(slide_deck_id)
+        
+        # Delete the slide deck record
+        supabase_service.delete_slide_deck(slide_deck_id)
+        
+        return {
+            "message": "Slide deck and associated summaries deleted successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

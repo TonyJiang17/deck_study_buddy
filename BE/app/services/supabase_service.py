@@ -114,4 +114,62 @@ class SupabaseService:
             print(f"Error fetching slide decks: {e}")
             raise
 
+    def get_slide_deck_by_id(self, slide_deck_id: str):
+        """
+        Get a slide deck by its ID
+        
+        :param slide_deck_id: ID of the slide deck
+        :return: Slide deck record or None
+        """
+        try:
+            response = (
+                self.supabase.table('SlideDeck')
+                .select('*')
+                .eq('id', slide_deck_id)
+                .execute()
+            )
+            
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error fetching slide deck: {e}")
+            raise
+
+    def delete_slide_summaries_by_deck_id(self, slide_deck_id: str):
+        """
+        Delete all slide summaries for a given slide deck
+        
+        :param slide_deck_id: ID of the slide deck
+        """
+        try:
+            response = (
+                self.supabase.table('SlideSummary')
+                .delete()
+                .eq('slide_deck_id', slide_deck_id)
+                .execute()
+            )
+            
+            return response
+        except Exception as e:
+            print(f"Error deleting slide summaries: {e}")
+            raise
+
+    def delete_slide_deck(self, slide_deck_id: str):
+        """
+        Delete a slide deck record
+        
+        :param slide_deck_id: ID of the slide deck to delete
+        """
+        try:
+            response = (
+                self.supabase.table('SlideDeck')
+                .delete()
+                .eq('id', slide_deck_id)
+                .execute()
+            )
+            
+            return response
+        except Exception as e:
+            print(f"Error deleting slide deck: {e}")
+            raise
+
 supabase_service = SupabaseService()
