@@ -33,13 +33,13 @@ class SlideSummaryRequest(BaseModel):
 @router.post("/generate")
 async def generate_slide_summary(
     summary_data: SlideSummaryRequest, 
-    user_id: str = Depends(get_current_user)
+    user_data: dict = Depends(get_current_user)
 ):
     """
     Generate or upsert a summary for the specified slide
     
     :param summary_data: Slide summary request data
-    :param user_id: ID of the authenticated user
+    :param user_data: Dictionary containing user ID and token
     :return: Created or updated slide summary record
     """
     try:
@@ -99,7 +99,9 @@ async def generate_slide_summary(
         slide_summary = supabase_service.create_slide_summary_record(
             slide_deck_id=summary_data.slide_deck_id,
             slide_number=summary_data.slide_number,
-            summary_text=summary_data.summary_text
+            summary_text=summary_data.summary_text,
+            user_token=user_data["token"],
+            refresh_token=user_data["refresh_token"]
         )
 
         return {
@@ -112,20 +114,24 @@ async def generate_slide_summary(
 @router.post("/regenerate")
 async def regenerate_slide_summary(
     summary_data: SlideSummaryRequest, 
-    user_id: str = Depends(get_current_user)
+    user_data: dict = Depends(get_current_user)
 ):
     """
     Regenerate a summary for the specified slide
     
     :param summary_data: Slide summary request data
-    :param user_id: ID of the authenticated user
+    :param user_data: Dictionary containing user ID and token
     :return: Updated slide summary record
     """
     try:
         # Get existing summary if not provided
         existing_summary = summary_data.summary_text
         if not existing_summary:
-            summaries = supabase_service.get_slide_summaries_by_deck_id(summary_data.slide_deck_id)
+            summaries = supabase_service.get_slide_summaries_by_deck_id(
+                summary_data.slide_deck_id,
+                user_token=user_data["token"],
+                refresh_token=user_data["refresh_token"]
+            )
             for summary in summaries:
                 if summary['slide_number'] == summary_data.slide_number:
                     existing_summary = summary['summary_text']
@@ -172,7 +178,9 @@ async def regenerate_slide_summary(
         slide_summary = supabase_service.create_slide_summary_record(
             slide_deck_id=summary_data.slide_deck_id,
             slide_number=summary_data.slide_number,
-            summary_text=new_summary
+            summary_text=new_summary,
+            user_token=user_data["token"],
+            refresh_token=user_data["refresh_token"]
         )
 
         return {
@@ -186,20 +194,22 @@ async def regenerate_slide_summary(
 @router.get("")
 async def get_slide_summaries(
     slide_deck_id: str, 
-    user_id: str = Depends(get_current_user)
+    user_data: dict = Depends(get_current_user)
 ):
     """
     Fetch all slide summaries for a given slide deck ordered by slide number
     
     :param slide_deck_id: ID of the slide deck
-    :param user_id: ID of the authenticated user
+    :param user_data: Dictionary containing user ID and token
     :return: List of slide summaries
     """
     try:
-        # Optional: Add validation to ensure user owns the slide deck
-        
         # Fetch slide summaries for the specified deck in order
-        slide_summaries = supabase_service.get_slide_summaries_by_deck_id(slide_deck_id)
+        slide_summaries = supabase_service.get_slide_summaries_by_deck_id(
+            slide_deck_id,
+            user_token=user_data["token"],
+            refresh_token=user_data["refresh_token"]
+        )
         
         return {
             "slide_summaries": slide_summaries

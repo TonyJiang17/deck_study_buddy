@@ -14,7 +14,6 @@ security = HTTPBearer()
 # Initialize OpenAI client
 load_dotenv(override=True)
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-print("OpenAI API Key:", os.getenv('OPENAI_API_KEY'))
 
 class ChatRequest(BaseModel):
     """

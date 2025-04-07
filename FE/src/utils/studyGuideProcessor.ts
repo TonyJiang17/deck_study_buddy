@@ -26,9 +26,9 @@ async function generateSlideSummary(
     }
 
     // Get auth token
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (!token) {
+    if (!session?.access_token || !session?.refresh_token) {
       console.error('No auth token available');
       throw new Error('Authentication required');
     }
@@ -38,7 +38,8 @@ async function generateSlideSummary(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${session?.access_token}`,
+        'X-Refresh-Token': session?.refresh_token
       },
       body: JSON.stringify({
         slide_deck_id: 'temp', // Will be replaced with actual ID in process functions
@@ -74,9 +75,9 @@ async function processFirstSlide(
   console.log('Processing first slide, image:', slideImage);
   try {
     // Get auth token
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (!token) {
+    if (!session?.access_token || !session?.refresh_token) {
       console.error('No auth token available');
       throw new Error('Authentication required');
     }
@@ -94,7 +95,8 @@ async function processFirstSlide(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${session?.access_token}`,
+        'X-Refresh-Token': session?.refresh_token
       },
       body: JSON.stringify({
         slide_deck_id: slideDeckId || 'temp',
@@ -133,9 +135,9 @@ async function processNextSlide(
 ): Promise<StudySection> {
   try {
     // Get auth token
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (!token) {
+    if (!session?.access_token || !session?.refresh_token) {
       console.error('No auth token available');
       throw new Error('Authentication required');
     }
@@ -160,7 +162,8 @@ async function processNextSlide(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${session.access_token}`,
+        'X-Refresh-Token': session.refresh_token
       },
       body: JSON.stringify({
         slide_deck_id: slideDeckId || 'temp',

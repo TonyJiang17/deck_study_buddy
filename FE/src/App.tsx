@@ -235,7 +235,8 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Refresh-Token': session.refresh_token
         },
         body: JSON.stringify({
           title: file.name.replace(/\.pdf$/i, ''),
@@ -444,7 +445,8 @@ function App() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${session.access_token}`,
+            'X-Refresh-Token': session.refresh_token
           },
           body: JSON.stringify({
             slide_deck_id: currentSlideDeckId,
@@ -487,7 +489,8 @@ function App() {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries?slide_deck_id=${slideDeckId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Refresh-Token': session.refresh_token
         }
       });
       
@@ -524,7 +527,8 @@ function App() {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-decks`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Refresh-Token': session.refresh_token
         }
       });
       
@@ -565,7 +569,8 @@ function App() {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-decks/${slideDeckId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Refresh-Token': session.refresh_token
         }
       });
       

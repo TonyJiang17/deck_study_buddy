@@ -44,9 +44,9 @@ export function StudyGuideView({
       const currentSlideSummary = sections.find(s => s.slideNumber === currentSlide)?.summary || '';
       
       // Get auth token
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (!token) {
+      if (!session?.access_token || !session?.refresh_token) {
         console.error('No auth token available');
         throw new Error('Authentication required');
       }
@@ -56,7 +56,8 @@ export function StudyGuideView({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${session?.access_token}`,
+          'X-Refresh-Token': session?.refresh_token
         },
         body: JSON.stringify({
           slide_deck_id: slideDeckId,
