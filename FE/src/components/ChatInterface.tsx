@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
+
+function normalizeLatexBrackets(text: string): string {
+  return text
+    .replace(/\\\((.+?)\\\)/g, (_match, inner) => `$${inner.trim()}$`)
+    .replace(/\\\[(.+?)\\\]/gs, (_match, inner) => `$$${inner.trim()}$$`);
+}
 
 interface ChatInterfaceProps {
   currentSlide: number;
@@ -125,7 +136,13 @@ export function ChatInterface({
                 : 'bg-gray-100 self-start mr-auto'
             }`}
           >
-            {msg.text}
+            {/* {msg.text} */}
+            <ReactMarkdown
+                children={normalizeLatexBrackets(msg.text)}
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                // className="prose prose-sm max-w-none"
+              />
           </div>
         ))}
         {isLoading && (
