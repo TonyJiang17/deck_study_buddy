@@ -56,7 +56,7 @@ export function FileUpload({ onFileSelect, status }: FileUploadProps) {
             Drag and drop your PDF here, or click to select
           </span>
           <span className="text-xs text-gray-400 mt-2">
-            Maximum file size: 100MB
+            Maximum file size: 50MB
           </span>
         </label>
       </div>
