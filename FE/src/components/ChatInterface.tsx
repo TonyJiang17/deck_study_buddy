@@ -108,10 +108,10 @@ export function ChatInterface({
   return (
     <div className="flex flex-col h-full border rounded-lg">
       {/* Chat Context Indicator */}
-      <div className="bg-blue-50 p-1 border-b flex items-center justify-between">
+      <div className="bg-blue-50 p-2 border-b flex items-center justify-between">
         <div className="flex items-center space-x-1">
           <span className="text-sm font-medium text-blue-700">
-            Chat Context:
+            Chat Context  
           </span>
           <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
             Slide {currentSlide} 

@@ -538,7 +538,6 @@ function App() {
       }
       
       const data = await response.json();
-      console.log('User slide decks:', data);
       
       // Store the slide decks in state
       if (data.slide_decks && Array.isArray(data.slide_decks)) {
@@ -770,12 +769,12 @@ function App() {
             <div className="min-h-screen">
               {showUploadUI && uploadStatus === 'idle' ? (
                 <div className="container mx-auto py-12">
-                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <h1 className="text-3xl font-bold text-center mb-2">SlideSense</h1>
                   <FileUpload onFileSelect={handleFileSelect} status={uploadStatus} />
                 </div>
               ) : uploadStatus === 'uploading' ? (
                 <div className="container mx-auto py-12 flex flex-col items-center">
-                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <h1 className="text-3xl font-bold text-center mb-8">SlideSense</h1>
                   <div className="flex items-center">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                     <span className="ml-2">Uploading your PDF...</span>
@@ -783,7 +782,7 @@ function App() {
                 </div>
               ) : uploadStatus === 'processing' ? (
                 <div className="container mx-auto py-12 flex flex-col items-center">
-                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <h1 className="text-3xl font-bold text-center mb-8">SlideSense</h1>
                   <div className="flex items-center">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                     <span className="ml-2">Processing your slides...</span>
@@ -791,7 +790,9 @@ function App() {
                 </div>
               ) : uploadStatus === 'error' ? (
                 <div className="container mx-auto py-12 flex flex-col items-center">
-                  <h1 className="text-3xl font-bold text-center mb-8">AI Study Buddy</h1>
+                  <div className="flex justify-center items-center mb-8">
+                    <h1 className="text-3xl font-bold">SlideSense</h1>
+                  </div>
                   <div className="text-center">
                     <p className="text-lg">An error occurred while processing your slides.</p>
                     <button
@@ -844,9 +845,11 @@ function App() {
       ) : (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
           <div className="p-8 bg-white rounded-lg shadow-md max-w-md w-full">
-            <h1 className="text-2xl font-bold text-center mb-6">AI Study Buddy</h1>
+            <h1 className="text-2xl font-bold text-center mb-6">
+              SlideSense <span className="text-sm font-normal text-gray-500 ml-2">by Tony</span>
+            </h1>
             <p className="mb-6 text-center text-gray-600">
-              Sign in to create and manage your study guides
+              Make sense of your slides — fast.
             </p>
             {/* <div className="flex justify-center">
               <button

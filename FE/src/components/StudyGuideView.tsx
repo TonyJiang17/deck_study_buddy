@@ -82,29 +82,38 @@ export function StudyGuideView({
   return (
     <div className="h-full flex flex-col">
       {/* Top Bar */}
-      <div className="bg-blue-50 p-2 border-b flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-blue-50 p-2 border-b flex items-center justify-between">
         <span className="text-sm font-medium text-blue-700">
           Slide {currentSlide} Summary
         </span>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
           <button
             onClick={regenerateSummary}
             disabled={isProcessing || isRegeneratingSummary}
-            className="text-blue-600 hover:bg-blue-100 p-1 rounded flex items-center"
+            className="text-blue-600 hover:bg-blue-50 p-2 rounded flex items-center"
             title="Regenerate Summary"
           >
             {isRegeneratingSummary ? (
               <>
                 <RefreshCcw className="w-4 h-4 animate-spin mr-1" />
-                <span className="text-xs">Regenerating...</span>
+                <span className="text-xs">Refreshing...</span>
               </>
             ) : (
               <>
                 <RefreshCcw className="w-4 h-4 mr-1" />
-                <span className="text-xs">Regenerate</span>
+                <span className="text-xs">Refresh</span>
               </>
             )}
           </button>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              Slide {currentSlide} 
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Slide {currentSlide} Summary
+          </span>
+          <span className="text-[0.6rem] bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            Chat History
+          </span>
         </div>
       </div>
 
