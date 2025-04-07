@@ -61,7 +61,7 @@ async def process_chat(
                     "content": context_prompt
                 }
             ],
-            max_tokens=250
+            max_tokens=1000
         )
         
         ai_response = response.choices[0].message.content

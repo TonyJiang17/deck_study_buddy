@@ -90,7 +90,7 @@ async def generate_slide_summary(
             response = openai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
-                max_tokens=150
+                max_tokens=1000
             )
             
             summary_data.summary_text = response.choices[0].message.content
@@ -169,7 +169,7 @@ async def regenerate_slide_summary(
                     "content": regeneration_prompt
                 }
             ],
-            max_tokens=300
+            max_tokens=1000
         )
         
         new_summary = response.choices[0].message.content
