@@ -1,12 +1,5 @@
 import type { StudySection } from '../types';
-import OpenAI from 'openai';
 import { supabase } from '../lib/supabase';
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Use with caution, prefer backend
-});
 
 async function generateSlideSummary(
   slideImage: File,
@@ -32,50 +25,41 @@ async function generateSlideSummary(
       });
     }
 
-    // Prepare messages array based on whether we have previous context
-    const messages = [
-      {
-        role: "system",
-        content: previousContext 
-          ? "You are an expert academic slide summarizer. Analyze both the previous and current slides to generate a contextual, informative summary of the current slide."
-          : "You are an expert academic slide summarizer. Analyze the slide image and generate a concise, informative summary."
+    // Get auth token
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    
+    if (!token) {
+      console.error('No auth token available');
+      throw new Error('Authentication required');
+    }
+    
+    // Call backend API to generate summary
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: previousContext
-              ? `Previous Slide Summary: ${previousContext.summary}\n\nPlease generate a precise, academic summary of the current slide, taking into account the context from the previous slide.`
-              : "Please generate a precise, academic summary of this slide."
-          },
-          ...(previousContext ? [
-            {
-              type: "image_url",
-              image_url: { url: previousImageBase64 }
-            }
-          ] : []),
-          {
-            type: "image_url",
-            image_url: { url: imageBase64 }
-          }
-        ]
-      }
-    ];
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: messages as any,
-      max_tokens: 150
+      body: JSON.stringify({
+        slide_deck_id: 'temp', // Will be replaced with actual ID in process functions
+        slide_number: 1, // Will be replaced with actual number in process functions
+        slide_image: imageBase64,
+        previous_slide_image: previousImageBase64 || undefined,
+        previous_summary: previousContext?.summary || undefined
+      })
     });
-
-    const summary = response.choices[0].message.content || '';
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${await response.text()}`);
+    }
+    
+    const data = await response.json();
     return {
-      summary,
+      summary: data.slide_summary.summary_text,
       content: imageBase64
     };
   } catch (error) {
-    console.error('OpenAI API Error:', error);
+    console.error('Summary generation error:', error);
     return {
       summary: 'Unable to generate summary',
       content: ''
@@ -89,46 +73,46 @@ async function processFirstSlide(
 ): Promise<StudySection> {
   console.log('Processing first slide, image:', slideImage);
   try {
-    // Generate summary using OpenAI
-    const { summary, content } = await generateSlideSummary(slideImage);
-    console.log('First slide summary:', summary);
+    // Get auth token
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
     
-    // If we have a slideDeckId, save the summary to the backend
-    if (slideDeckId) {
-      try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        
-        if (!token) {
-          console.error('No auth token available');
-        } else {
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              slide_deck_id: slideDeckId,
-              slide_number: 1,
-              summary_text: summary
-            })
-          });
-          
-          if (!response.ok) {
-            console.error('Failed to save summary to backend:', await response.text());
-          } else {
-            console.log('Summary saved to backend successfully');
-          }
-        }
-      } catch (apiError) {
-        console.error('API error saving summary:', apiError);
-      }
+    if (!token) {
+      console.error('No auth token available');
+      throw new Error('Authentication required');
     }
+    
+    // Convert image to base64
+    const imageBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(slideImage);
+    });
+    
+    // Call backend API to generate summary
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        slide_deck_id: slideDeckId || 'temp',
+        slide_number: 1,
+        slide_image: imageBase64
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${await response.text()}`);
+    }
+    
+    const data = await response.json();
     
     return {
       slideNumber: 1,
-      content,
-      summary
+      content: imageBase64,
+      summary: data.slide_summary.summary_text
     };
   } catch (error) {
     console.error('Error processing first slide:', error);
@@ -148,48 +132,56 @@ async function processNextSlide(
   slideDeckId?: string
 ): Promise<StudySection> {
   try {
-    // Generate summary using OpenAI
-    const { summary, content } = await generateSlideSummary(
-      currentSlideImage,
-      { summary: previousSection.summary, image: previousSlideImage }
-    );
-
-    // If we have a slideDeckId, save the summary to the backend
-    if (slideDeckId) {
-      try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        
-        if (!token) {
-          console.error('No auth token available');
-        } else {
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              slide_deck_id: slideDeckId,
-              slide_number: slideNumber,
-              summary_text: summary
-            })
-          });
-          
-          if (!response.ok) {
-            console.error('Failed to save summary to backend:', await response.text());
-          } else {
-            console.log('Summary saved to backend successfully');
-          }
-        }
-      } catch (apiError) {
-        console.error('API error saving summary:', apiError);
-      }
+    // Get auth token
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    
+    if (!token) {
+      console.error('No auth token available');
+      throw new Error('Authentication required');
     }
-
+    
+    // Convert images to base64
+    const currentImageBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(currentSlideImage);
+    });
+    
+    const previousImageBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(previousSlideImage);
+    });
+    
+    // Call backend API to generate summary
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        slide_deck_id: slideDeckId || 'temp',
+        slide_number: slideNumber,
+        slide_image: currentImageBase64,
+        previous_slide_image: previousImageBase64,
+        previous_summary: previousSection.summary,
+        previous_slide_number: previousSection.slideNumber
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${await response.text()}`);
+    }
+    
+    const data = await response.json();
+    
     return {
       slideNumber,
-      content,
-      summary
+      content: currentImageBase64,
+      summary: data.slide_summary.summary_text
     };
   } catch (error) {
     console.error('Error processing slide:', error);

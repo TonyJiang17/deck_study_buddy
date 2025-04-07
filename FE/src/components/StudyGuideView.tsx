@@ -1,16 +1,10 @@
+import { Loader2, RefreshCcw } from 'lucide-react';
 import React from 'react';
-import { StudySection } from '../types';
+import type { StudySection } from '../types';
+import { supabase } from '../lib/supabase';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { InlineMath, BlockMath } from 'react-katex';
-import { Loader2 } from 'lucide-react';
-import { RefreshCcw } from 'lucide-react';
 import 'katex/dist/katex.min.css';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Use with caution, prefer backend
-});
 
 interface StudyGuideViewProps {
   sections: StudySection[];
@@ -18,6 +12,7 @@ interface StudyGuideViewProps {
   isProcessing: boolean;
   onSummaryRegenerate?: (slideNumber: number, newSummary: string) => void;
   chatHistory: string[];
+  slideDeckId?: string;
 }
 
 export function StudyGuideView({ 
@@ -25,7 +20,8 @@ export function StudyGuideView({
   currentSlide, 
   isProcessing,
   onSummaryRegenerate,
-  chatHistory
+  chatHistory,
+  slideDeckId
 }: StudyGuideViewProps) {
   // Add more comprehensive logging
   React.useEffect(() => {
@@ -47,37 +43,35 @@ export function StudyGuideView({
       // Find the current slide's summary
       const currentSlideSummary = sections.find(s => s.slideNumber === currentSlide)?.summary || '';
       
-      // Construct context-rich prompt for summary regeneration
-      const regenerationPrompt = `
-        Current Slide: ${currentSlide}
-        Original Summary: ${currentSlideSummary}
-        
-        Chat History Context: ${chatHistory.join('\n')}
-        
-        Please regenerate the slide summary, taking into account the conversation history. 
-        Incorporate any new insights or clarifications from the chat while maintaining the 
-        core content of the original summary. Be concise, academic, and precise.
-        
-        If the chat history provides additional context or reveals misunderstandings, 
-        adjust the summary accordingly to provide a more accurate and comprehensive explanation.
-      `;
-      console.log('Regenerating summary prompt', regenerationPrompt)
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an academic assistant who can regenerate slide summaries based on conversation context. Maintain academic rigor while adapting to new insights."
-          },
-          {
-            role: "user",
-            content: regenerationPrompt
-          }
-        ],
-        max_tokens: 300
+      // Get auth token
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      
+      if (!token) {
+        console.error('No auth token available');
+        throw new Error('Authentication required');
+      }
+      
+      // Call backend API to regenerate summary
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/slide-summaries/regenerate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          slide_deck_id: slideDeckId,
+          slide_number: currentSlide,
+          summary_text: currentSlideSummary,
+          chat_context: chatHistory
+        })
       });
-
-      const newSummary = response.choices[0].message.content || 'Unable to regenerate summary.';
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${await response.text()}`);
+      }
+      
+      const data = await response.json();
+      const newSummary = data.summary_text;
       
       // If a callback is provided, call it with the new summary
       if (onSummaryRegenerate) {

@@ -371,20 +371,35 @@ function App() {
     setCurrentSlide(newSlide);
 
     try {
-      // Capture the new slide image
       if (!selectedFile) throw new Error('No file selected');
+      
+      // Capture the new slide image
       const newSlideImage = await captureSlide(selectedFile, newSlide);
       if (!newSlideImage) throw new Error('Failed to capture slide image');
+
+      // Check if we have the previous slide image
+      const previousSlideImageName = `slide_${newSlide - 1}.png`;
+      let previousSlideImage = slideImages.find(img => img.name === previousSlideImageName);
+      
+      // If previous slide image doesn't exist, capture it
+      if (!previousSlideImage) {
+        console.log(`Previous slide image ${previousSlideImageName} not found, capturing it now...`);
+        previousSlideImage = await captureSlide(selectedFile, newSlide - 1);
+        
+        if (!previousSlideImage) {
+          throw new Error('Failed to capture previous slide image');
+        }
+        
+        // Add the previous slide image to our collection
+        setSlideImages(prev => [...prev, previousSlideImage!]);
+      }
 
       // Add the new slide image to our collection
       setSlideImages(prev => [...prev, newSlideImage]);
 
-      // Get the previous slide's summary and image for context
+      // Get the previous slide's summary for context
       const previousSection = studyGuide.sections.find(s => s.slideNumber === newSlide - 1);
-      const previousSlideImage = slideImages.find(img => img.name === `slide_${newSlide - 1}.png`);
-      
       if (!previousSection) throw new Error('Previous summary data not found');
-      if (!previousSlideImage) throw new Error('Previous slide image not found');
 
       // Process the new slide
       const newSection = await processNextSlide(
@@ -803,6 +818,7 @@ function App() {
                         isProcessing={isProcessing}
                         onSummaryRegenerate={handleSummaryRegenerate}
                         chatHistory={chatHistory}
+                        slideDeckId={currentSlideDeckId || undefined}
                       />
                     </div>
                     <div className="h-1/2 border-t border-gray-200">
