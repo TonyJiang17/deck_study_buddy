@@ -124,31 +124,6 @@ function App() {
         // User is logged in
         setUser(session.user);
         window.google?.accounts.id.cancel();
-        
-        // Optional: Check if user exists in your database
-        // If not, create a new user record
-        const { data: existingUser, error } = await supabase
-          .from('User')  // Assuming you have a User table
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        console.log(existingUser)
-  
-        if (!existingUser) {
-          // First-time login: create user record
-          const { error: insertError } = await supabase
-            .from('User')
-            .insert({
-              id: session.user.id, // match auth.users.id
-              email: session.user.email,
-              display_name: session.user.user_metadata?.full_name,
-            });
-  
-          if (insertError) {
-            console.error('Error creating user:', insertError);
-          }
-        }
       } 
       setIsLoading(false);
     };
@@ -157,13 +132,40 @@ function App() {
   
     // Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setUser(session?.user ?? null);
         
-        if (event === 'SIGNED_IN') {
+        if (event === 'SIGNED_IN' && session?.user) {
           // Additional first-time login logic can go here
           console.log('User signed in for the first time or logged in again');
-          window.google?.accounts.id.cancel(); // Hide One Tap UI
+          // window.google?.accounts.id.cancel(); // Hide One Tap UI
+          console.log('aefaef')
+          // Check if user exists in our database
+          const { data: existingUser, error } = await supabase
+            .from('User')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          console.log('User check after sign-in:', existingUser, error);
+    
+          if (!existingUser) {
+            console.log('Creating new user record after sign-in');
+            // First-time login: create user record
+            console.log('session.user.email', session.user.email);
+            const { error: insertError } = await supabase
+              .from('User')
+              .insert({
+                id: session.user.id,
+                email: session.user.email,
+                display_name: session.user.user_metadata?.full_name,
+              });
+    
+            if (insertError) {
+              console.error('Error creating user:', insertError);
+            } else {
+              console.log('Successfully created user record after sign-in');
+            }
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('User signed out');
           // Reinitialize Google One Tap after logout
@@ -270,6 +272,8 @@ function App() {
         const pdf = await pdfjs.getDocument(typedArray).promise;
         const totalPages = pdf.numPages;
 
+        setTotalSlides(totalPages);
+
         // Check if we already have summaries for this slide deck
         const existingSummaries = await fetchSlideSummaries(slideDeckId);
         
@@ -296,7 +300,6 @@ function App() {
           }
         }
         
-        setTotalSlides(totalPages);
         setUploadStatus('complete');
       };
 
@@ -642,6 +645,7 @@ function App() {
 
       // Process the PDF to get total pages and first slide image
       const fileReader = new FileReader();
+
       fileReader.onload = async (e) => {
         const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
         const pdf = await pdfjs.getDocument(typedArray).promise;
