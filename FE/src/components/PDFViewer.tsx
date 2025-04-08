@@ -26,7 +26,7 @@ export function PDFViewer({ file, currentSlide, onSlideChange, disabled }: PDFVi
 
   const changePage = (offset: number) => {
     const newPage = currentSlide + offset;
-    if (newPage >= 1 && newPage <= numPages && !disabled) {
+    if (newPage >= 1 && newPage <= numPages && (offset < 0 || !disabled)) {
       onSlideChange(newPage);
     }
   };
@@ -81,9 +81,9 @@ export function PDFViewer({ file, currentSlide, onSlideChange, disabled }: PDFVi
       <div className="flex justify-between items-center p-2 bg-white">
         <button 
           onClick={() => changePage(-1)} 
-          disabled={currentSlide <= 1 || disabled}
+          disabled={currentSlide <= 1}
           className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${
-            currentSlide <= 1 || disabled ? 'opacity-50 cursor-not-allowed' : ''
+            currentSlide <= 1 ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
           <ChevronLeft className="w-6 h-6" />
