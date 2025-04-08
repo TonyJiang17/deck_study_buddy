@@ -189,6 +189,7 @@ async def regenerate_slide_summary(
             "summary_text": new_summary
         }
     except Exception as e:
+        print(f"Error regenerating slide summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("")
