@@ -50,10 +50,10 @@ export function FileUpload({ onFileSelect, status }: FileUploadProps) {
         >
           <Upload className="w-12 h-12 text-gray-400 mb-4" />
           <span className="text-xl font-medium text-gray-700 mb-2">
-            Upload your slide deck as !!PDF!!
+            Upload your slide deck as PDF
           </span>
           <span className="text-sm text-gray-500">
-            Drag and drop your !!PDF!! here, or click to select
+            Drag and drop your PDF here, or click to select
           </span>
           <span className="text-xs text-gray-400 mt-2">
             Maximum file size: 50MB
