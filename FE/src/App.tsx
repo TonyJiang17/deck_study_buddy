@@ -726,7 +726,7 @@ function App() {
                           className={`flex-grow text-left flex items-center p-2 rounded hover:bg-gray-100 ${currentSlideDeckId === deck.id ? 'bg-blue-50 text-blue-600' : ''}`}
                         >
                           <FileText size={16} className="mr-2" />
-                          <span className="truncate">{deck.title}</span>
+                          <span className="truncate max-w-[150px]">{deck.title}</span>
                         </button>
                         <button 
                           onClick={(e) => {
