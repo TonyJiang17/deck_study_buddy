@@ -4,10 +4,15 @@ from app.routes import slide_deck, slide_summary, chat
 
 app = FastAPI()
 
+origins = [
+    "https://deck-study-buddy.vercel.app",  # e.g. https://myapp.vercel.app
+    "http://localhost:5173",  # for local dev if needed
+]
+
 # CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=origins #["*"],  # Adjust in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,6 +24,6 @@ app.include_router(slide_summary.router, prefix="/api/slide-summaries", tags=["s
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 
 # Optional: Health check endpoint
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+# @app.get("/health")
+# def health_check():
+#     return {"status": "healthy"}
