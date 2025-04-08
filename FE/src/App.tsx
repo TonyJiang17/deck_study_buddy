@@ -595,78 +595,77 @@ function App() {
   };
 
   // Function to load a specific slide deck
-  const loadSlideDeck = async (slideDeckId: string, pdfUrl: string) => {
+  const loadSlideDeck = useCallback(async (slideDeckId: string, pdfUrl: string) => {
     try {
-      setIsLoading(true);
+      setIsProcessing(true);
+      setCurrentSlide(1); // Reset to first slide when loading a new deck
       setCurrentSlideDeckId(slideDeckId);
       setShowUploadUI(false);
-      
-      // Fetch the PDF file from the URL
-      const response = await fetch(pdfUrl);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/slide-summaries?slide_deck_id=${slideDeckId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          }
+        }
+      );
+
       if (!response.ok) {
+        console.error('Failed to fetch slide summaries:', await response.text());
+        return;
+      }
+
+      const data = await response.json();
+      console.log('Fetched slide summaries:', data);
+
+      // Convert the backend format to StudySection format
+      const summaries = data.slide_summaries.map((summary: any) => ({
+        slideNumber: summary.slide_number,
+        summary: summary.summary_text,
+        content: '' // We don't have the image content from the backend
+      }));
+
+      setStudyGuide({ sections: summaries });
+
+      // Fetch the PDF file from the URL
+      const pdfResponse = await fetch(pdfUrl);
+      if (!pdfResponse.ok) {
         throw new Error('Failed to fetch PDF file');
       }
-      
-      const pdfBlob = await response.blob();
+
+      const pdfBlob = await pdfResponse.blob();
       const pdfFile = new File([pdfBlob], 'slide_deck.pdf', { type: 'application/pdf' });
       setSelectedFile(pdfFile);
-      
-      // Fetch summaries for this slide deck
-      const summaries = await fetchSlideSummaries(slideDeckId);
-      console.log('Fetched summaries:', summaries);
-      if (summaries.length > 0) {
-        setStudyGuide({ sections: summaries });
-        
-        // Process the PDF to get total pages and first slide image
-        const fileReader = new FileReader();
-        fileReader.onload = async (e) => {
-          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
-          const pdf = await pdfjs.getDocument(typedArray).promise;
-          const totalPages = pdf.numPages;
-          setTotalSlides(totalPages);
-          
-          // Capture the first slide image for display
-          const firstSlideImage = await captureSlide(pdfFile, 1);
-          if (firstSlideImage) {
-            setSlideImages([firstSlideImage]);
-          }
-          
-          setUploadStatus('complete');
-          setIsLoading(false);
-        };
-        
-        fileReader.readAsArrayBuffer(pdfFile);
-      } else {
-        // If no summaries exist, process as a new upload
-        setUploadStatus('processing');
-        
-        const fileReader = new FileReader();
-        fileReader.onload = async (e) => {
-          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
-          const pdf = await pdfjs.getDocument(typedArray).promise;
-          const totalPages = pdf.numPages;
-          
-          const firstSlideImage = await captureSlide(pdfFile, 1);
-          if (firstSlideImage) {
-            setSlideImages([firstSlideImage]);
-            const firstSection = await processFirstSlide(firstSlideImage, slideDeckId);
-            setStudyGuide({ sections: [firstSection] });
-          }
-          
-          setTotalSlides(totalPages);
-          setUploadStatus('complete');
-          setIsLoading(false);
-        };
-        
-        fileReader.readAsArrayBuffer(pdfFile);
-      }
+
+      // Process the PDF to get total pages and first slide image
+      const fileReader = new FileReader();
+      fileReader.onload = async (e) => {
+        const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
+        const pdf = await pdfjs.getDocument(typedArray).promise;
+        const totalPages = pdf.numPages;
+        setTotalSlides(totalPages);
+
+        // Capture the first slide image for display
+        const firstSlideImage = await captureSlide(pdfFile, 1);
+        if (firstSlideImage) {
+          setSlideImages([firstSlideImage]);
+        }
+
+        setUploadStatus('complete');
+        setIsProcessing(false);
+      };
+
+      fileReader.readAsArrayBuffer(pdfFile);
     } catch (error) {
       console.error('Error loading slide deck:', error);
       setUploadStatus('error');
-      setIsLoading(false);
+      setIsProcessing(false);
       setShowUploadUI(true);
     }
-  };
+  }, [supabase.auth]);
 
   // Function to reset to upload UI
   const showNewSlideDeckUI = () => {
